@@ -14,7 +14,7 @@ st.set_page_config(
 @st.cache_data
 def load_data():
     """Loads the final, complete data from GitHub using the robust Python engine."""
-    url = 'https://raw.githubusercontent.com/Haleemah-Amisu/purposeful-rankings/main/college_rankings_final_with_insights.csv'
+    url = 'https://raw.githubusercontent.com/Amisu-Tayo/Ranking-With-Purpose/refs/heads/main/college_rankings_final_with_insights.csv'
     df = pd.read_csv(url, engine='python')
     return df
 

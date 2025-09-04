@@ -1,5 +1,8 @@
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -10,9 +13,8 @@ st.set_page_config(
 # --- Data Loading ---
 @st.cache_data
 def load_data():
-    """Loads the final data from GitHub using the robust Python engine."""
+    """Loads the final, complete data from GitHub using the robust Python engine."""
     url = 'https://raw.githubusercontent.com/Haleemah-Amisu/purposeful-rankings/main/college_rankings_final_with_insights.csv'
-    # The engine='python' fix is essential for reading your specific CSV file.
     df = pd.read_csv(url, engine='python')
     return df
 
@@ -22,71 +24,138 @@ try:
 
     # --- Header ---
     st.title('Ranking with Purpose: A New Lens on College Evaluation')
-    st.markdown("""
-    This tool moves beyond traditional metrics to highlight institutions that deliver strong outcomes, 
-    provide access, and operate efficiently. Use the features below to find a school that truly fits your priorities.
-    """)
+    st.markdown("This tool will find you a school that is perfectly tailored to YOUR needs.")
 
-    # --- School Recommender ---
-    st.markdown("---")
-    st.header("🎯 School Recommender")
-    st.markdown("Use the sliders to set your minimum percentile for each category. The app will find schools that meet all your selected criteria.")
+    # --- Create Four Tabs for a Clean Interface ---
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "🎯 School Recommender",
+        "🔭 Explore Groups",
+        "🔍 Find a School",
+        "🗺️ Cluster Map"
+    ])
 
-    ranking_metrics = {
-        'student_success_percentile': 'Student Success',
-        'affordability_percentile': 'Affordability',
-        'resources_percentile': 'Academic Resources',
-        'equity_percentile': 'Access & Equity'
-    }
+    # --- Tab 1: School Recommender ---
+    with tab1:
+        st.header("Find a School That Fits Your Priorities")
+        st.markdown("Use the sliders to set your minimum percentile for each category. The table will update to show schools that meet all your criteria.")
 
-    cols = st.columns(len(ranking_metrics))
-    user_priorities = {}
+        ranking_metrics = {
+            'student_success_percentile': 'Student Success',
+            'affordability_percentile': 'Affordability',
+            'resources_percentile': 'Academic Resources',
+            'equity_percentile': 'Access & Equity'
+        }
 
-    for i, (metric, label) in enumerate(ranking_metrics.items()):
-        with cols[i]:
-            user_priorities[metric] = st.slider(
-                f'Minimum {label} %', 0, 100, 50
-            )
+        cols = st.columns(len(ranking_metrics))
+        user_priorities = {}
 
-    filtered_df = df.copy()
-    for metric, min_percentile in user_priorities.items():
-        if metric in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df[metric] >= min_percentile]
-
-    st.subheader(f'{len(filtered_df)} Schools Match Your Criteria')
-    
-    # 'State' has been removed from this list of columns to display
-    display_cols = ['Institution Name'] + list(ranking_metrics.keys())
-    st.dataframe(
-        filtered_df[display_cols].rename(columns={k: f"{v} %" for k, v in ranking_metrics.items()}),
-        use_container_width=True,
-        hide_index=True
-    )
-
-    # --- Institutional Groups Explorer ---
-    st.markdown("---")
-    st.header("Explore the Institutional Groups")
-    st.markdown("Colleges were grouped into four distinct clusters based on their overall performance profiles.")
-
-    if 'cluster_name' in df.columns:
-        cluster_names = sorted([name for name in df['cluster_name'].unique() if pd.notna(name)])
-
-        for name in cluster_names:
-            with st.expander(f"**{name}**"):
-                st.markdown(f"### Schools in the '{name}' Group")
-                cluster_df = df[df['cluster_name'] == name]
-                
-                # 'State' has been removed from this list of columns to display
-                display_cols = ['Institution Name', 'Insight'] + list(ranking_metrics.keys())
-                
-                st.dataframe(
-                    cluster_df[display_cols].rename(columns={k: f"{v} %" for k, v in ranking_metrics.items()}),
-                    use_container_width=True,
-                    hide_index=True
+        for i, (metric, label) in enumerate(ranking_metrics.items()):
+            with cols[i]:
+                user_priorities[metric] = st.slider(
+                    f'Minimum {label} %', 0, 100, 50, key=f'slider_{metric}'
                 )
-    else:
-        st.warning("The 'cluster_name' column was not found in the data.")
+
+        filtered_df = df.copy()
+        for metric, min_percentile in user_priorities.items():
+            if metric in filtered_df.columns:
+                filtered_df = filtered_df[filtered_df[metric] >= min_percentile]
+
+        st.subheader(f'{len(filtered_df)} Schools Match Your Criteria')
+        display_cols = ['Institution Name'] + list(ranking_metrics.keys())
+        st.dataframe(
+            filtered_df[display_cols].rename(columns={k: f"{v} %" for k, v in ranking_metrics.items()}),
+            use_container_width=True, hide_index=True
+        )
+
+    # --- Tab 2: Explore Institutional Groups ---
+    with tab2:
+        st.header("Discover Different Types of High-Performing Institutions")
+        st.markdown("Colleges were grouped into four distinct clusters based on their overall performance profiles.")
+
+        if 'cluster_name' in df.columns:
+            cluster_names = sorted([name for name in df['cluster_name'].unique() if pd.notna(name)])
+            for name in cluster_names:
+                with st.expander(f"**{name}**"):
+                    cluster_df = df[df['cluster_name'] == name]
+                    st.dataframe(
+                        cluster_df[['Institution Name', 'Insight'] + list(ranking_metrics.keys())].rename(columns={k: f"{v} %" for k, v in ranking_metrics.items()}),
+                        use_container_width=True, hide_index=True
+                    )
+
+    # --- Tab 3: Find a School ---
+    with tab3:
+        st.header("Look Up a Specific School")
+        search_term = st.text_input("Enter a school name to see its detailed profile:")
+
+        if search_term:
+            results_df = df[df['Institution Name'].str.contains(search_term, case=False, na=False)]
+            if not results_df.empty:
+                st.subheader("School Profiles")
+                for index, school in results_df.iterrows():
+                    st.markdown(f"#### {school['Institution Name']}")
+                    st.write(f"**Insight:** {school['Insight']}")
+                    st.write(f"**Institutional Group:** {school['cluster_name']}")
+                    st.markdown("---")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.markdown("**Core Rankings (Percentile)**")
+                        for metric, label in ranking_metrics.items():
+                            st.write(f"{label}: **{school[metric]:.1f}%**")
+                    with col2:
+                        st.markdown("**Key Individual Stats**")
+                        key_stats = ['Graduation Rate (4yr)', 'Retention Rate', 'Average Net Price', 'Student-to-Faculty Ratio', 'Pell Grant Percentage']
+                        for stat in key_stats:
+                            if stat in school and pd.notna(school[stat]):
+                                st.write(f"{stat}: **{school[stat]:,.1f}**")
+                    with col3:
+                        st.markdown("**Efficiency Metrics (Percentile)**")
+                        efficiency_metrics = [col for col in df.columns if 'per' in col and '_percentile' in col]
+                        for metric in efficiency_metrics:
+                             st.write(f"{metric.replace('_percentile', '').replace('_', ' ').title()}: **{school[metric]:.1f}%**")
+
+
+            else:
+                st.warning("No schools found with that name.")
+
+    # --- Tab 4: Cluster Map ---
+    with tab4:
+        st.header("Visualize the College Landscape")
+        st.markdown("This map shows all 700+ institutions plotted based on their overall profile. Each color represents one of the four institutional groups, showing the distinct patterns in public higher education.")
+
+        # Prepare data for PCA
+        pca_features = ['student_success_score', 'affordability_score', 'resources_score', 'equity_score']
+        pca_df = df.dropna(subset=pca_features + ['cluster_name'])
+        
+        X = StandardScaler().fit_transform(pca_df[pca_features])
+        
+        # Perform PCA
+        pca = PCA(n_components=2)
+        X_pca = pca.fit_transform(X)
+        
+        pca_df['pca1'] = X_pca[:, 0]
+        pca_df['pca2'] = X_pca[:, 1]
+        
+        # Create the plot
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        # Get unique cluster names and assign colors
+        clusters = pca_df['cluster_name'].unique()
+        colors = plt.cm.get_cmap('viridis', len(clusters))
+        
+        for i, cluster in enumerate(clusters):
+            cluster_data = pca_df[pca_df['cluster_name'] == cluster]
+            ax.scatter(cluster_data['pca1'], cluster_data['pca2'], color=colors(i), label=cluster, alpha=0.7)
+            
+        ax.set_title('Institutional Cluster Map')
+        ax.set_xlabel('Principal Component 1')
+        ax.set_ylabel('Principal Component 2')
+        ax.legend()
+        ax.grid(True, linestyle='--', alpha=0.6)
+        
+        st.pyplot(fig)
+
 
 except Exception as e:
-    st.error(f"An unexpected error occurred. Error details: {e}")
+    st.error(f"An unexpected error occurred. Please ensure your CSV file is up to date. Error details: {e}")
 

@@ -28,6 +28,41 @@ try:
     Explore the data to find a school that truly fits your priorities.
     """)
 
+  # --- School Clusters ---
+    st.markdown("---")
+    st.header("Explore the Institutional Groups")
+    st.markdown("""
+    Based on their performance across all categories, the 700+ public colleges were grouped into four distinct clusters.
+    Each group represents a unique operational profile. Click on a group to see the schools within it.
+    """)
+
+    # Get the unique, non-null cluster names and sort them
+    cluster_names = sorted([name for name in df['cluster_name'].unique() if pd.notna(name)])
+
+    for name in cluster_names:
+        # Use an expander to neatly tuck away the list of schools for each cluster
+        with st.expander(f"**{name}**"):
+            st.markdown(f"### Schools in the '{name}' Group")
+            cluster_df = df[df['cluster_name'] == name]
+            
+            # Select relevant columns to display
+            display_cols = ['Institution Name', 'State', 'student_success_percentile', 'affordability_percentile', 'resources_percentile', 'equity_percentile', 'Insight']
+            
+            # Format percentiles for better readability (e.g., 0.87 -> 87.0%)
+            # We also rename the columns for a cleaner look in the table header
+            display_df = cluster_df[display_cols].rename(columns={
+                'student_success_percentile': 'Success %',
+                'affordability_percentile': 'Affordability %',
+                'resources_percentile': 'Resources %',
+                'equity_percentile': 'Equity %'
+            })
+
+            st.dataframe(
+                display_df,
+                use_container_width=True,
+                hide_index=True
+            )
+
   
 
 except FileNotFoundError:

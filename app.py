@@ -13,7 +13,7 @@ st.set_page_config(
 @st.cache_data
 def load_data():
     # Load the final CSV file from GitHub repository
-    url = 'https://github.com/Amisu-Tayo/Ranking-With-Purpose/blob/main/college_rankings_final_with_insights.csv'
+    url = 'https://raw.githubusercontent.com/Amisu-Tayo/Ranking-With-Purpose/main/college_rankings_final_with_insights.csv'
     df = pd.read_csv(url, engine='python')
     return df
 

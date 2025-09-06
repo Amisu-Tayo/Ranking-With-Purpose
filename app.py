@@ -89,7 +89,7 @@ try:
                         use_container_width=True, hide_index=True
                     )
 
-    # --- Tab 3: Find a School (REDESIGNED FOR CLARITY) ---
+    # --- Tab 3: Find a School (REDESIGNED FOR CLARITY & BUGS FIXED) ---
     with tab3:
         st.header("Look Up a Specific School")
         search_term = st.text_input("Start typing a school name to search:")
@@ -113,7 +113,8 @@ try:
                     st.markdown("---")
                     
                     st.subheader("Performance Snapshot")
-                    res_col1, res_col2 = st.columns(2)
+                    # --- NEW: Three-column layout for clarity ---
+                    res_col1, res_col2, res_col3 = st.columns(3)
                     with res_col1:
                         st.markdown("**Core Rankings**", help="How this school ranks against all others. A rank of 90 means it's in the top 10%.")
                         for metric, label in ranking_metrics.items():
@@ -121,6 +122,8 @@ try:
                     
                     with res_col2:
                         st.markdown("**Efficiency Metrics**", help="How effectively this school uses its resources, ranked against others.")
+                        
+                        # --- BUG FIX: Corrected map to find and display all 5 efficiency metrics ---
                         efficiency_metrics_map = {
                             'Graduation per Instructional Spending_percentile': 'Graduates per Instruction $',
                             'Retention per Student Services Spending_percentile': 'Retention per Student Services $',
@@ -131,6 +134,20 @@ try:
                         for metric_col, friendly_name in efficiency_metrics_map.items():
                              if metric_col in school and pd.notna(school[metric_col]):
                                 st.metric(label=f"{friendly_name} (Percentile Rank)", value=f"{school[metric_col]:.1f}")
+
+                    with res_col3:
+                        # --- NEW: Added back the raw stats with proper units ---
+                        st.markdown("**Key Individual Stats**", help="A few important raw data points for this school.")
+                        
+                        if 'Graduation Rate (4yr)' in school and pd.notna(school['Graduation Rate (4yr)']):
+                             st.metric(label="4-Year Graduation Rate", value=f"{school['Graduation Rate (4yr)']:.1f}%")
+                        if 'Retention Rate' in school and pd.notna(school['Retention Rate']):
+                            st.metric(label="Full-Time Retention Rate", value=f"{school['Retention Rate']:.1f}%")
+                        if 'Student-to-Faculty Ratio' in school and pd.notna(school['Student-to-Faculty Ratio']):
+                            st.metric(label="Student-to-Faculty Ratio", value=f"{int(school['Student-to-Faculty Ratio'])} to 1")
+                        if 'Average Net Price' in school and pd.notna(school['Average Net Price']):
+                            st.metric(label="Average Net Price", value=f"${int(school['Average Net Price']):,}")
+
             else:
                 st.warning("No schools found matching that name.")
 

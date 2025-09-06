@@ -119,7 +119,7 @@ try:
                             st.metric(label=f"{label} (Percentile Rank)", value=f"{school[metric]:.1f}")
                     
                     with res_col2:
-                        st.markdown("**Efficiency Metrics**", help="How effectively this school uses its resources, ranked against others.")
+                        st.markdown("**Efficiency Metrics**", help="A score from 0-100 showing how this school's efficiency compares to others. A higher score is better.")
                         
                         # --- BUG FIX #1: Corrected dictionary keys to match the final CSV ---
                         efficiency_metrics_map = {
@@ -139,6 +139,8 @@ try:
                         # --- BUG FIX #2: Code now correctly displays the true raw stats from the CSV ---
                         if 'Graduation Rate (4yr)' in school and pd.notna(school['Graduation Rate (4yr)']):
                              st.metric(label="4-Year Graduation Rate", value=f"{school['Graduation Rate (4yr)']:.1f}%")
+                        if 'Graduation Rate (5yr)' in school and pd.notna(school['Graduation Rate (5yr)']):
+                             st.metric(label="5-Year Graduation Rate", value=f"{school['Graduation Rate (5yr)']:.1f}%")
                         if 'Retention Rate' in school and pd.notna(school['Retention Rate']):
                             st.metric(label="Full-Time Retention Rate", value=f"{school['Retention Rate']:.1f}%")
                         if 'Student-to-Faculty Ratio' in school and pd.notna(school['Student-to-Faculty Ratio']):

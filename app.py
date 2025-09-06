@@ -144,7 +144,7 @@ try:
     # --- Tab 4: Cluster Map ---
     with tab4:
         st.header("Visualize the College Landscape")
-        st.markdown("This map shows all 700+ institutions plotted based on their overall profile. Each color represents one of the four institutional groups.")
+        st.markdown("This map shows all institutions plotted based on their overall profile. Each color represents one of the four institutional groups.")
 
         pca_features = ['student_success_score', 'affordability_score', 'resources_score', 'equity_score']
         pca_df = df.dropna(subset=pca_features + ['cluster_name'])

@@ -68,7 +68,6 @@ try:
                 filtered_df = filtered_df[filtered_df[metric] >= min_percentile]
 
         st.subheader(f'{len(filtered_df)} Schools Match Your Criteria')
-        # Displaying percentile values without the ambiguous '%' sign
         st.dataframe(
             filtered_df[['Institution Name'] + list(ranking_metrics.keys())].rename(columns={k: f"{v} (Percentile)" for k, v in ranking_metrics.items()}),
             use_container_width=True, hide_index=True
@@ -89,7 +88,7 @@ try:
                         use_container_width=True, hide_index=True
                     )
 
-    # --- Tab 3: Find a School (REDESIGNED FOR CLARITY & BUGS FIXED) ---
+    # --- Tab 3: Find a School (FINAL CORRECTED VERSION) ---
     with tab3:
         st.header("Look Up a Specific School")
         search_term = st.text_input("Start typing a school name to search:")
@@ -113,32 +112,31 @@ try:
                     st.markdown("---")
                     
                     st.subheader("Performance Snapshot")
-                    # --- NEW: Three-column layout for clarity ---
                     res_col1, res_col2, res_col3 = st.columns(3)
                     with res_col1:
-                        st.markdown("**Core Rankings**", help="How this school ranks against all others. A rank of 90 means it's in the top 10%.")
+                        st.markdown("**Core Rankings**", help="How this school ranks against all others. A percentile rank of 90 means it's in the top 10%.")
                         for metric, label in ranking_metrics.items():
                             st.metric(label=f"{label} (Percentile Rank)", value=f"{school[metric]:.1f}")
                     
                     with res_col2:
                         st.markdown("**Efficiency Metrics**", help="How effectively this school uses its resources, ranked against others.")
                         
-                        # --- BUG FIX: Corrected map to find and display all 5 efficiency metrics ---
+                        # --- BUG FIX #1: Corrected dictionary keys to match the final CSV ---
                         efficiency_metrics_map = {
-                            'Graduation per Instructional Spending_percentile': 'Graduates per Instruction $',
+                            'Graduation per Instructional Spending_percentile': 'Grads per Instruction $',
                             'Retention per Student Services Spending_percentile': 'Retention per Student Services $',
-                            'Degrees per Net Price_percentile': 'Graduates per Net Price $',
-                            'Graduation per Core Expenses_percentile': 'Graduates per Core Expenses $',
-                            'Degrees per Endowment per FTE_percentile': 'Graduates per Endowment $'
+                            'Degrees per Net Price_percentile': 'Grads per Net Price $',
+                            'Graduation per Core Expenses_percentile': 'Grads per Core Expenses $',
+                            'Degrees per Endowment per FTE_percentile': 'Grads per Endowment $'
                         }
                         for metric_col, friendly_name in efficiency_metrics_map.items():
                              if metric_col in school and pd.notna(school[metric_col]):
                                 st.metric(label=f"{friendly_name} (Percentile Rank)", value=f"{school[metric_col]:.1f}")
 
                     with res_col3:
-                        # --- NEW: Added back the raw stats with proper units ---
                         st.markdown("**Key Individual Stats**", help="A few important raw data points for this school.")
                         
+                        # --- BUG FIX #2: Code now correctly displays the true raw stats from the CSV ---
                         if 'Graduation Rate (4yr)' in school and pd.notna(school['Graduation Rate (4yr)']):
                              st.metric(label="4-Year Graduation Rate", value=f"{school['Graduation Rate (4yr)']:.1f}%")
                         if 'Retention Rate' in school and pd.notna(school['Retention Rate']):

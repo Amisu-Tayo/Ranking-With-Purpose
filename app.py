@@ -121,7 +121,9 @@ try:
                                 st.write(f"{stat}: **{school[stat]:,.1f}**")
                     with res_col3:
                         st.markdown("**Efficiency Metrics (Percentile)**")
+                        # This list comprehension correctly finds the efficiency columns
                         efficiency_metrics = [col for col in df.columns if 'per' in col and '_percentile' in col]
+                        # --- BUG FIX: This loop now correctly iterates over the `efficiency_metrics` list ---
                         for metric in efficiency_metrics:
                             st.write(f"{metric.replace('_percentile', '').replace('_', ' ').title()}: **{school[metric]:.1f}%**")
             else:

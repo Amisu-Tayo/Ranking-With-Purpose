@@ -7,7 +7,8 @@ from sklearn.decomposition import PCA
 # --- Page Configuration ---
 st.set_page_config(
     page_title="Ranking with Purpose",
-    layout="wide"
+    layout="wide",
+    page_icon="🎯"
 )
 
 # --- Data Loading ---
@@ -23,26 +24,24 @@ try:
     df = load_data()
 
     # --- Header ---
-    st.title('Ranking with Purpose: A New Lens on College Evaluation')
-    st.markdown("This tool moves beyond traditional metrics to help you find a school that's the right fit for *you*.")
+    st.title('🎯 Ranking with Purpose')
+    st.markdown("A new lens on college evaluation, designed to help you find a school that's the right fit for *you*.")
 
     # --- Create Four Tabs for a Clean Interface ---
     tab1, tab2, tab3, tab4 = st.tabs([
-        "🎯 Build Your Personal Ranking",
+        "📊 Build Your Ranking",
         "🔭 Explore Groups",
         "🔍 Find a School",
         "🗺️ Cluster Map"
     ])
 
-    # --- Tab 1: Build Your Personal Ranking ---
+    # --- Tab 1: Build Your Ranking ---
     with tab1:
         st.header("Find Schools That Match Your Priorities")
-        
-        # --- NEW: Explainer Box for Percentiles ---
         st.info(
             """
             **How to use this tool:** Adjust the sliders below to set your priorities.
-            A percentile ranking shows how a school compares to others. Setting a slider to **80** means you're looking for schools
+            A **percentile rank** shows how a school compares to others. Setting a slider to **80** means you're looking for schools
             that perform better than **80%** of all other public colleges in that category.
             """
         )
@@ -59,7 +58,6 @@ try:
 
         for i, (metric, label) in enumerate(ranking_metrics.items()):
             with cols[i]:
-                # --- NEW: Simplified Slider Label ---
                 user_priorities[metric] = st.slider(
                     label, 0, 100, 50, key=f'slider_{metric}'
                 )
@@ -70,13 +68,13 @@ try:
                 filtered_df = filtered_df[filtered_df[metric] >= min_percentile]
 
         st.subheader(f'{len(filtered_df)} Schools Match Your Criteria')
-        display_cols = ['Institution Name'] + list(ranking_metrics.keys())
+        # Displaying percentile values without the ambiguous '%' sign
         st.dataframe(
-            filtered_df[display_cols].rename(columns={k: f"{v} %" for k, v in ranking_metrics.items()}),
+            filtered_df[['Institution Name'] + list(ranking_metrics.keys())].rename(columns={k: f"{v} (Percentile)" for k, v in ranking_metrics.items()}),
             use_container_width=True, hide_index=True
         )
 
-    # --- Tab 2: Explore Institutional Groups ---
+    # --- Tab 2: Explore Groups ---
     with tab2:
         st.header("Discover Different Types of High-Performing Institutions")
         st.markdown("Based on their overall profiles, colleges were sorted into four distinct groups. Click on a group to see the schools inside.")
@@ -87,11 +85,11 @@ try:
                 with st.expander(f"**{name}**"):
                     cluster_df = df[df['cluster_name'] == name]
                     st.dataframe(
-                        cluster_df[['Institution Name', 'Insight'] + list(ranking_metrics.keys())].rename(columns={k: f"{v} %" for k, v in ranking_metrics.items()}),
+                        cluster_df[['Institution Name', 'Insight'] + list(ranking_metrics.keys())].rename(columns={k: f"{v} (Percentile)" for k, v in ranking_metrics.items()}),
                         use_container_width=True, hide_index=True
                     )
 
-    # --- Tab 3: Find a School ---
+    # --- Tab 3: Find a School (REDESIGNED FOR CLARITY) ---
     with tab3:
         st.header("Look Up a Specific School")
         search_term = st.text_input("Start typing a school name to search:")
@@ -99,45 +97,40 @@ try:
         cleaned_search_term = search_term.strip()
 
         if cleaned_search_term:
-            possible_matches = df[df['Institution Name'].str.contains(cleaned_search_term, case=False, na=False)]['Institution Name'].tolist()
+            possible_matches_df = df[df['Institution Name'].str.contains(cleaned_search_term, case=False, na=False)]
             
-            if possible_matches:
-                options = ["-- Select a school from the list --"] + sorted(possible_matches)
+            if not possible_matches_df.empty:
+                possible_names = possible_matches_df['Institution Name'].tolist()
+                options = ["-- Select a school from the list --"] + sorted(possible_names)
                 selected_school_name = st.selectbox("Select a matching school:", options)
 
                 if selected_school_name != "-- Select a school from the list --":
-                    school = df[df['Institution Name'] == selected_school_name].iloc[0]
+                    school = possible_matches_df[possible_matches_df['Institution Name'] == selected_school_name].iloc[0]
                     
-                    st.markdown(f"#### {school['Institution Name']}")
-                    st.write(f"**Insight:** {school['Insight']}")
+                    st.markdown(f"### {school['Institution Name']}")
                     st.write(f"**Institutional Group:** {school['cluster_name']}")
+                    st.info(f"**Insight:** *{school['Insight']}*")
                     st.markdown("---")
                     
-                    res_col1, res_col2, res_col3 = st.columns(3)
+                    st.subheader("Performance Snapshot")
+                    res_col1, res_col2 = st.columns(2)
                     with res_col1:
-                        st.markdown("**Core Rankings (Percentile)**", help="How this school ranks against all others (e.g., a score of 90 means it's in the top 10%).")
+                        st.markdown("**Core Rankings**", help="How this school ranks against all others. A rank of 90 means it's in the top 10%.")
                         for metric, label in ranking_metrics.items():
-                            st.write(f"{label}: **{school[metric]:.1f}%**")
+                            st.metric(label=f"{label} (Percentile Rank)", value=f"{school[metric]:.1f}")
+                    
                     with res_col2:
-                        st.markdown("**Key Individual Stats**", help="A few important raw data points for this school.")
-                        key_stats = ['Graduation Rate (4yr)', 'Retention Rate', 'Average Net Price', 'Student-to-Faculty Ratio', 'Pell Grant Percentage']
-                        for stat in key_stats:
-                            if stat in school and pd.notna(school[stat]):
-                                st.write(f"{stat}: **{school[stat]:,.1f}**")
-                    with res_col3:
-                        st.markdown("**Efficiency Metrics (Percentile)**", help="How effectively this school uses its resources to achieve outcomes, ranked against all others.")
-                        
-                        # --- NEW: Simplified and user-friendly efficiency metrics ---
+                        st.markdown("**Efficiency Metrics**", help="How effectively this school uses its resources, ranked against others.")
                         efficiency_metrics_map = {
-                            'Graduation per Instructional Spending_percentile': 'Graduates per Dollar Spent on Instruction',
-                            'Retention per Student Services Spending_percentile': 'Student Retention per Dollar Spent on Services',
-                            'Degrees per Net Price_percentile': 'Graduates per Dollar of Net Price',
-                            'Graduation per Core Expenses_percentile': 'Graduates per Dollar of Core Expenses',
-                            'Degrees per Endowment per FTE_percentile': 'Graduates per Endowment Dollar'
+                            'Graduation per Instructional Spending_percentile': 'Graduates per Instruction $',
+                            'Retention per Student Services Spending_percentile': 'Retention per Student Services $',
+                            'Degrees per Net Price_percentile': 'Graduates per Net Price $',
+                            'Graduation per Core Expenses_percentile': 'Graduates per Core Expenses $',
+                            'Degrees per Endowment per FTE_percentile': 'Graduates per Endowment $'
                         }
                         for metric_col, friendly_name in efficiency_metrics_map.items():
-                            if metric_col in school and pd.notna(school[metric_col]):
-                                st.write(f"{friendly_name}: **{school[metric_col]:.1f}%**")
+                             if metric_col in school and pd.notna(school[metric_col]):
+                                st.metric(label=f"{friendly_name} (Percentile Rank)", value=f"{school[metric_col]:.1f}")
             else:
                 st.warning("No schools found matching that name.")
 

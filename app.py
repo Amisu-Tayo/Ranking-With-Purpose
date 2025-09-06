@@ -14,7 +14,7 @@ st.set_page_config(
 @st.cache_data
 def load_data():
     """Loads the final, complete data from GitHub using the robust Python engine."""
-    url = 'https://raw.githubusercontent.com/Amisu-Tayo/Ranking-With-Purpose/refs/heads/main/college_rankings_final_with_insights.csv'
+    url = 'https://raw.githubusercontent.com/Amisu-Tayo/Ranking-With-Purpose/main/college_rankings_final_with_insights.csv'
     df = pd.read_csv(url, engine='python')
     return df
 
@@ -82,65 +82,70 @@ try:
                         use_container_width=True, hide_index=True
                     )
 
-    # --- Tab 3: Find a School ---
+    # --- Tab 3: Find a School (with NEW, Improved Search UX) ---
     with tab3:
         st.header("Look Up a Specific School")
-        search_term = st.text_input("Enter a school name to see its detailed profile:")
+        search_term = st.text_input("Start typing a school name:")
 
-        if search_term:
-            results_df = df[df['Institution Name'].str.contains(search_term, case=False, na=False)]
-            if not results_df.empty:
-                st.subheader("School Profiles")
-                for index, school in results_df.iterrows():
+        # --- NEW 2-STEP SEARCH LOGIC ---
+        cleaned_search_term = search_term.strip()
+
+        if cleaned_search_term:
+            # Step 1: Find all possible matches and populate a dropdown
+            possible_matches = df[df['Institution Name'].str.contains(cleaned_search_term, case=False, na=False)]['Institution Name'].tolist()
+            
+            if possible_matches:
+                # Add a placeholder to the beginning of the list
+                options = ["-- Select a school --"] + sorted(possible_matches)
+                selected_school_name = st.selectbox("Did you mean...?", options)
+
+                # Step 2: If the user selects a valid school, show its profile
+                if selected_school_name != "-- Select a school --":
+                    school = df[df['Institution Name'] == selected_school_name].iloc[0]
+                    
                     st.markdown(f"#### {school['Institution Name']}")
                     st.write(f"**Insight:** {school['Insight']}")
                     st.write(f"**Institutional Group:** {school['cluster_name']}")
                     st.markdown("---")
                     
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
+                    res_col1, res_col2, res_col3 = st.columns(3)
+                    with res_col1:
                         st.markdown("**Core Rankings (Percentile)**")
                         for metric, label in ranking_metrics.items():
                             st.write(f"{label}: **{school[metric]:.1f}%**")
-                    with col2:
+                    with res_col2:
                         st.markdown("**Key Individual Stats**")
                         key_stats = ['Graduation Rate (4yr)', 'Retention Rate', 'Average Net Price', 'Student-to-Faculty Ratio', 'Pell Grant Percentage']
                         for stat in key_stats:
                             if stat in school and pd.notna(school[stat]):
                                 st.write(f"{stat}: **{school[stat]:,.1f}**")
-                    with col3:
+                    with res_col3:
                         st.markdown("**Efficiency Metrics (Percentile)**")
                         efficiency_metrics = [col for col in df.columns if 'per' in col and '_percentile' in col]
                         for metric in efficiency_metrics:
-                             st.write(f"{metric.replace('_percentile', '').replace('_', ' ').title()}: **{school[metric]:.1f}%**")
-
-
+                            st.write(f"{metric.replace('_percentile', '').replace('_', ' ').title()}: **{school[metric]:.1f}%**")
             else:
-                st.warning("No schools found with that name.")
+                st.warning("No schools found matching that name.")
 
     # --- Tab 4: Cluster Map ---
     with tab4:
         st.header("Visualize the College Landscape")
         st.markdown("This map shows all 700+ institutions plotted based on their overall profile. Each color represents one of the four institutional groups, showing the distinct patterns in public higher education.")
 
-        # Prepare data for PCA
         pca_features = ['student_success_score', 'affordability_score', 'resources_score', 'equity_score']
         pca_df = df.dropna(subset=pca_features + ['cluster_name'])
         
         X = StandardScaler().fit_transform(pca_df[pca_features])
         
-        # Perform PCA
         pca = PCA(n_components=2)
         X_pca = pca.fit_transform(X)
         
         pca_df['pca1'] = X_pca[:, 0]
         pca_df['pca2'] = X_pca[:, 1]
         
-        # Create the plot
         fig, ax = plt.subplots(figsize=(12, 8))
         
-        # Get unique cluster names and assign colors
-        clusters = pca_df['cluster_name'].unique()
+        clusters = sorted(pca_df['cluster_name'].unique()) # Sort clusters for consistent color mapping
         colors = plt.cm.get_cmap('viridis', len(clusters))
         
         for i, cluster in enumerate(clusters):
@@ -148,14 +153,13 @@ try:
             ax.scatter(cluster_data['pca1'], cluster_data['pca2'], color=colors(i), label=cluster, alpha=0.7)
             
         ax.set_title('Institutional Cluster Map')
-        ax.set_xlabel('Principal Component 1')
-        ax.set_ylabel('Principal Component 2')
+        ax.set_xlabel('Principal Component 1 (Success vs. Affordability/Equity)')
+        ax.set_ylabel('Principal Component 2 (Academic Resources)')
         ax.legend()
         ax.grid(True, linestyle='--', alpha=0.6)
         
         st.pyplot(fig)
 
-
 except Exception as e:
-    st.error(f"An unexpected error occurred. Please ensure your CSV file is up to date. Error details: {e}")
+    st.error(f"An unexpected error occurred. Please ensure your CSV file is up to date and accessible at the specified URL. Error details: {e}")
 

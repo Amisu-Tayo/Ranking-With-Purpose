@@ -69,7 +69,7 @@ try:
 
         st.subheader(f'{len(filtered_df)} Schools Match Your Criteria')
         st.dataframe(
-            filtered_df[['Institution Name'] + list(ranking_metrics.keys())].rename(columns={k: f"{v} (Percentile)" for k, v in ranking_metrics.items()}),
+            filtered_df[['Institution Name', 'State'] + list(ranking_metrics.keys())].rename(columns={k: f"{v} (Percentile)" for k, v in ranking_metrics.items()}),
             use_container_width=True, hide_index=True
         )
 
@@ -84,72 +84,63 @@ try:
                 with st.expander(f"**{name}**"):
                     cluster_df = df[df['cluster_name'] == name]
                     st.dataframe(
-                        cluster_df[['Institution Name', 'Insight'] + list(ranking_metrics.keys())].rename(columns={k: f"{v} (Percentile)" for k, v in ranking_metrics.items()}),
+                        cluster_df[['Institution Name', 'State', 'Insight'] + list(ranking_metrics.keys())].rename(columns={k: f"{v} (Percentile)" for k, v in ranking_metrics.items()}),
                         use_container_width=True, hide_index=True
                     )
 
-    # --- Tab 3: Find a School (FINAL CORRECTED VERSION) ---
+    # --- Tab 3: Find a School (FINAL UX and BUG FIXES) ---
     with tab3:
         st.header("Look Up a Specific School")
-        search_term = st.text_input("Start typing a school name to search:")
+        
+        # --- NEW: Single, elegant search dropdown ---
+        school_list = ["-- Select a school --"] + sorted(df['Institution Name'].unique())
+        selected_school_name = st.selectbox("Search for a school by typing its name below:", school_list)
 
-        cleaned_search_term = search_term.strip()
-
-        if cleaned_search_term:
-            possible_matches_df = df[df['Institution Name'].str.contains(cleaned_search_term, case=False, na=False)]
+        # Display the profile only when a valid school is selected
+        if selected_school_name != "-- Select a school --":
+            school = df[df['Institution Name'] == selected_school_name].iloc[0]
             
-            if not possible_matches_df.empty:
-                possible_names = possible_matches_df['Institution Name'].tolist()
-                options = ["-- Select a school from the list --"] + sorted(possible_names)
-                selected_school_name = st.selectbox("Select a matching school:", options)
+            st.markdown(f"### {school['Institution Name']}, {school['State']}")
+            st.write(f"**Institutional Group:** {school['cluster_name']}")
+            st.info(f"**Insight:** *{school['Insight']}*")
+            st.markdown("---")
+            
+            st.subheader("Performance Snapshot")
+            res_col1, res_col2, res_col3 = st.columns(3)
+            
+            with res_col1:
+                st.markdown("**Core Rankings**", help="How this school ranks against all others. A rank of 90 means it's in the top 10%.")
+                for metric, label in ranking_metrics.items():
+                    st.metric(label=f"{label} (Percentile Rank)", value=f"{school[metric]:.1f}")
+            
+            with res_col2:
+                st.markdown("**Efficiency Metrics**", help="A score from 0-100 showing how this school's efficiency compares to others. A higher score is better.")
+                
+                # --- BUG FIX: Corrected dictionary keys to match the final CSV ---
+                efficiency_metrics_map = {
+                    'Graduation per Instructional Spending_percentile': 'Grads per Instruction $',
+                    'Retention per Student Services Spending_percentile': 'Retention per Student Services $',
+                    'Degrees per Net Price_percentile': 'Grads per Net Price $',
+                    'Graduation per Core Expenses_percentile': 'Grads per Core Expenses $',
+                    'Degrees per Endowment per FTE_percentile': 'Grads per Endowment $'
+                }
+                for metric_col, friendly_name in efficiency_metrics_map.items():
+                     if metric_col in school and pd.notna(school[metric_col]):
+                        st.metric(label=f"{friendly_name} (Efficiency Score)", value=f"{school[metric_col]:.1f}")
 
-                if selected_school_name != "-- Select a school from the list --":
-                    school = possible_matches_df[possible_matches_df['Institution Name'] == selected_school_name].iloc[0]
-                    
-                    st.markdown(f"### {school['Institution Name']}")
-                    st.write(f"**Institutional Group:** {school['cluster_name']}")
-                    st.info(f"**Insight:** *{school['Insight']}*")
-                    st.markdown("---")
-                    
-                    st.subheader("Performance Snapshot")
-                    res_col1, res_col2, res_col3 = st.columns(3)
-                    with res_col1:
-                        st.markdown("**Core Rankings**", help="How this school ranks against all others. A percentile rank of 90 means it's in the top 10%.")
-                        for metric, label in ranking_metrics.items():
-                            st.metric(label=f"{label} (Percentile Rank)", value=f"{school[metric]:.1f}")
-                    
-                    with res_col2:
-                        st.markdown("**Efficiency Metrics**", help="A score from 0-100 showing how this school's efficiency compares to others. A higher score is better.")
-                        
-                        # --- BUG FIX #1: Corrected dictionary keys to match the final CSV ---
-                        efficiency_metrics_map = {
-                            'Graduation per Instructional Spending_percentile': 'Grads per Instruction $',
-                            'Retention per Student Services Spending_percentile': 'Retention per Student Services $',
-                            'Degrees per Net Price_percentile': 'Grads per Net Price $',
-                            'Graduation per Core Expenses_percentile': 'Grads per Core Expenses $',
-                            'Degrees per Endowment per FTE_percentile': 'Grads per Endowment $'
-                        }
-                        for metric_col, friendly_name in efficiency_metrics_map.items():
-                             if metric_col in school and pd.notna(school[metric_col]):
-                                st.metric(label=f"{friendly_name} (Percentile Rank)", value=f"{school[metric_col]:.1f}")
-
-                    with res_col3:
-                        st.markdown("**Key Individual Stats**", help="A few important raw data points for this school.")
-                        
-                        # --- BUG FIX #2: Code now correctly displays the true raw stats from the CSV ---
-                        if 'Graduation Rate (4yr)' in school and pd.notna(school['Graduation Rate (4yr)']):
-                             st.metric(label="4-Year Graduation Rate", value=f"{school['Graduation Rate (4yr)']:.1f}%")
-                        if 'Graduation Rate (5yr)' in school and pd.notna(school['Graduation Rate (5yr)']):
-                             st.metric(label="5-Year Graduation Rate", value=f"{school['Graduation Rate (5yr)']:.1f}%")
-                        if 'Retention Rate' in school and pd.notna(school['Retention Rate']):
-                            st.metric(label="Full-Time Retention Rate", value=f"{school['Retention Rate']:.1f}%")
-                        if 'Student-to-Faculty Ratio' in school and pd.notna(school['Student-to-Faculty Ratio']):
-                            st.metric(label="Student-to-Faculty Ratio", value=f"{int(school['Student-to-Faculty Ratio'])} to 1")
-                        if 'Average Net Price' in school and pd.notna(school['Average Net Price']):
-                            st.metric(label="Average Net Price", value=f"${int(school['Average Net Price']):,}")
-
-            else:
-                st.warning("No schools found matching that name.")
+            with res_col3:
+                st.markdown("**Key Individual Stats**", help="A few important raw data points for this school.")
+                
+                if 'Graduation Rate (4yr)' in school and pd.notna(school['Graduation Rate (4yr)']):
+                     st.metric(label="4-Year Graduation Rate", value=f"{school['Graduation Rate (4yr)']:.1f}%")
+                if 'Graduation Rate (5yr)' in school and pd.notna(school['Graduation Rate (5yr)']):
+                     st.metric(label="5-Year Graduation Rate", value=f"{school['Graduation Rate (5yr)']:.1f}%")
+                if 'Retention Rate' in school and pd.notna(school['Retention Rate']):
+                    st.metric(label="Full-Time Retention Rate", value=f"{school['Retention Rate']:.1f}%")
+                if 'Student-to-Faculty Ratio' in school and pd.notna(school['Student-to-Faculty Ratio']):
+                    st.metric(label="Student-to-Faculty Ratio", value=f"{int(school['Student-to-Faculty Ratio'])} to 1")
+                if 'Average Net Price' in school and pd.notna(school['Average Net Price']):
+                    st.metric(label="Average Net Price", value=f"${int(school['Average Net Price']):,}")
 
     # --- Tab 4: Cluster Map ---
     with tab4:

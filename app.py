@@ -27,16 +27,17 @@ try:
     st.title('🎯 Ranking with Purpose')
     st.markdown("A new lens on college evaluation, designed to help you find a school that's the right fit for *you*.")
 
-    # --- Create Four Tabs for a Clean Interface ---
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📊 Build Your Ranking",
-        "🔭 Explore Groups",
-        "🔍 Find a School",
-        "🗺️ Cluster Map"
-    ])
+    # --- FIX #1: A Better Navigation Bar that Remembers State ---
+    # Using st.radio styled horizontally to act as a stateful tab bar
+    selected_tab = st.radio(
+        "Navigation",
+        ["📊 Build Your Ranking", "🔭 Explore Groups", "🔍 Find a School", "🗺️ Cluster Map"],
+        horizontal=True,
+        label_visibility="collapsed" # Hides the "Navigation" label for a cleaner look
+    )
 
     # --- Tab 1: Build Your Ranking ---
-    with tab1:
+    if selected_tab == "📊 Build Your Ranking":
         st.header("Find Schools That Match Your Priorities")
         st.info(
             """
@@ -74,7 +75,7 @@ try:
         )
 
     # --- Tab 2: Explore Groups ---
-    with tab2:
+    if selected_tab == "🔭 Explore Groups":
         st.header("Discover Different Types of High-Performing Institutions")
         st.markdown("Based on their overall profiles, colleges were sorted into four distinct groups. Click on a group to see the schools inside.")
 
@@ -88,15 +89,13 @@ try:
                         use_container_width=True, hide_index=True
                     )
 
-    # --- Tab 3: Find a School (FINAL UX and BUG FIXES) ---
-    with tab3:
+    # --- Tab 3: Find a School ---
+    if selected_tab == "🔍 Find a School":
         st.header("Look Up a Specific School")
         
-        # --- NEW: Single, elegant search dropdown ---
         school_list = ["-- Select a school --"] + sorted(df['Institution Name'].unique())
-        selected_school_name = st.selectbox("Search for a school by typing its name below:", school_list)
+        selected_school_name = st.selectbox("Search for a school by typing its name below:", school_list, key="school_selector")
 
-        # Display the profile only when a valid school is selected
         if selected_school_name != "-- Select a school --":
             school = df[df['Institution Name'] == selected_school_name].iloc[0]
             
@@ -109,6 +108,12 @@ try:
             res_col1, res_col2, res_col3 = st.columns(3)
             
             with res_col1:
+                ranking_metrics = {
+                    'student_success_percentile': 'Student Success',
+                    'affordability_percentile': 'Affordability',
+                    'resources_percentile': 'Academic Resources',
+                    'equity_percentile': 'Access & Equity'
+                }
                 st.markdown("**Core Rankings**", help="How this school ranks against all others. A rank of 90 means it's in the top 10%.")
                 for metric, label in ranking_metrics.items():
                     st.metric(label=f"{label} (Percentile Rank)", value=f"{school[metric]:.1f}")
@@ -116,7 +121,7 @@ try:
             with res_col2:
                 st.markdown("**Efficiency Metrics**", help="A score from 0-100 showing how this school's efficiency compares to others. A higher score is better.")
                 
-                # --- BUG FIX: Corrected dictionary keys to match the final CSV ---
+                # --- FIX #2: Corrected dictionary keys to EXACTLY match the final CSV ---
                 efficiency_metrics_map = {
                     'Graduation per Instructional Spending_percentile': 'Grads per Instruction $',
                     'Retention per Student Services Spending_percentile': 'Retention per Student Services $',
@@ -143,7 +148,7 @@ try:
                     st.metric(label="Average Net Price", value=f"${int(school['Average Net Price']):,}")
 
     # --- Tab 4: Cluster Map ---
-    with tab4:
+    if selected_tab == "🗺️ Cluster Map":
         st.header("Visualize the College Landscape")
         st.markdown("This map shows all institutions plotted based on their overall profile. Each color represents one of the four institutional groups.")
 

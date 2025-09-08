@@ -14,9 +14,12 @@ st.set_page_config(
 # --- Data Loading ---
 @st.cache_data
 def load_data():
-    """Loads the final, complete data from GitHub using the robust Python engine."""
+    """Loads the final, complete data from GitHub and renames key columns for easier use."""
     url = 'https://raw.githubusercontent.com/Amisu-Tayo/Ranking-With-Purpose/main/college_rankings_final_with_insights.csv'
     df = pd.read_csv(url, engine='python')
+    # --- BUG FIX: Rename column to 'State' to match what the app expects ---
+    if 'State abbreviation (HD2023)' in df.columns:
+        df.rename(columns={'State abbreviation (HD2023)': 'State'}, inplace=True)
     return df
 
 # --- Main App ---
@@ -27,7 +30,7 @@ try:
     st.title('🎯 Ranking with Purpose')
     st.markdown("A new lens on college evaluation, designed to help you find a school that's the right fit for *you*.")
 
-    # --- FIX: A Better Navigation Bar that Remembers State ---
+    # --- Navigation Bar ---
     # Using st.radio styled horizontally to act as a stateful tab bar
     selected_tab = st.radio(
         "Navigation",
@@ -112,26 +115,27 @@ try:
                 
                 # --- BUG FIX: Corrected dictionary keys to EXACTLY match the final CSV ---
                 efficiency_metrics_map = {
-                    'Graduation per Instructional Spending_percentile': 'Grads per Instruction $',
-                    'Retention per Student Services Spending_percentile': 'Retention per Student Services $',
-                    'Degrees per Net Price_percentile': 'Grads per Net Price $',
-                    'Graduation per Core Expenses_percentile': 'Grads per Core Expenses $',
-                    'Degrees per Endowment per FTE_percentile': 'Grads per Endowment $'
+                    'Graduation Rate per Instructional Spending_percentile': 'Grads per Instruction $',
+                    'Retention Rate per Student Service Spending_percentile': 'Retention per Student Services $',
+                    'Graduation Rate per Net Price_percentile': 'Grads per Net Price $',
+                    'Graduation Rate per Core Expenses_percentile': 'Grads per Core Expenses $',
+                    'Graduation Rate per Endowment per FTE_percentile': 'Grads per Endowment $'
                 }
                 for metric_col, friendly_name in efficiency_metrics_map.items():
-                     if metric_col in school and pd.notna(school[metric_col]):
-                        st.metric(label=f"{friendly_name} (Efficiency Score)", value=f"{school[metric_col]:.1f}")
+                        if metric_col in school and pd.notna(school[metric_col]):
+                            st.metric(label=f"{friendly_name} (Efficiency Score)", value=f"{school[metric_col]:.1f}")
             with res_col3:
                 st.markdown("**Key Individual Stats**", help="A few important raw data points for this school.")
-                # --- BUG FIX: Added 5/6 year grad rates from the CSV ---
-                if 'Graduation Rate (4yr)' in school and pd.notna(school['Graduation Rate (4yr)']):
-                     st.metric(label="4-Year Graduation Rate", value=f"{school['Graduation Rate (4yr)']:.1f}%")
-                if 'Graduation Rate (5yr)' in school and pd.notna(school['Graduation Rate (5yr)']):
-                     st.metric(label="5-Year Graduation Rate", value=f"{school['Graduation Rate (5yr)']:.1f}%")
-                if 'Graduation Rate (6yr)' in school and pd.notna(school['Graduation Rate (6yr)']):
-                     st.metric(label="6-Year Graduation Rate", value=f"{school['Graduation Rate (6yr)']:.1f}%")
-                if 'Student-to-Faculty Ratio' in school and pd.notna(school['Student-to-Faculty Ratio']):
-                    st.metric(label="Student-to-Faculty Ratio", value=f"{int(school['Student-to-Faculty Ratio'])} to 1")
+                
+                # --- BUG FIX: Corrected column names to match the CSV ---
+                if '4-year Grad Rate' in school and pd.notna(school['4-year Grad Rate']):
+                        st.metric(label="4-Year Graduation Rate", value=f"{school['4-year Grad Rate']:.1f}%")
+                if '5-year Grad Rate' in school and pd.notna(school['5-year Grad Rate']):
+                        st.metric(label="5-Year Graduation Rate", value=f"{school['5-year Grad Rate']:.1f}%")
+                if '6-year Grad Rate' in school and pd.notna(school['6-year Grad Rate']):
+                        st.metric(label="6-Year Graduation Rate", value=f"{school['6-year Grad Rate']:.1f}%")
+                if 'Student to Faculty Ratio' in school and pd.notna(school['Student to Faculty Ratio']):
+                    st.metric(label="Student-to-Faculty Ratio", value=f"{int(school['Student to Faculty Ratio'])} to 1")
 
     # --- Tab 4: Cluster Map ---
     if selected_tab == "🗺️ Cluster Map":
@@ -146,10 +150,10 @@ try:
         pca_df['pca2'] = X_pca[:, 1]
         fig, ax = plt.subplots(figsize=(12, 8))
         clusters = sorted(pca_df['cluster_name'].unique())
-        colors = plt.cm.get_cmap('viridis', len(clusters))
+        colors = plt.get_cmap('viridis')(range(len(clusters))) # Correct way to get colors from cmap
         for i, cluster in enumerate(clusters):
             cluster_data = pca_df[pca_df['cluster_name'] == cluster]
-            ax.scatter(cluster_data['pca1'], cluster_data['pca2'], color=colors(i), label=cluster, alpha=0.7)
+            ax.scatter(cluster_data['pca1'], cluster_data['pca2'], color=colors[i], label=cluster, alpha=0.7)
         ax.set_title('Institutional Cluster Map')
         ax.set_xlabel('Principal Component 1 (Success vs. Affordability/Equity)')
         ax.set_ylabel('Principal Component 2 (Academic Resources)')

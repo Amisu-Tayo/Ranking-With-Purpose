@@ -147,7 +147,6 @@ try:
                         x *= 100
                     return f"{x:.1f}%"
 
-
                 
                 if 'Graduation Rate (4yr)' in school and pd.notna(school['Graduation Rate (4yr)']):
                      st.metric(label="4-Year Graduation Rate", value=f"{school['Graduation Rate (4yr)']:.1f}%")
@@ -157,13 +156,13 @@ try:
                 if pd.isna(val):
                     val = school.get("Graduation rate - Bachelor degree within 5 years  total (DRVGR2023)")
                 if pd.notna(val):
-                    st.metric(label="5-Year Graduation Rate", value=f"{float(val):.1f}%")
+                    st.metric(label="5-Year Graduation Rate", value=pct_str(val))
                 # 6-year
                 val = school.get("Graduation Rate (6yr)")
                 if pd.isna(val):
                     val = school.get("Graduation rate - Bachelor degree within 6 years  total (DRVGR2023)")
                 if pd.notna(val):
-                    st.metric(label="6-Year Graduation Rate", value=f"{float(val):.1f}%")
+                    st.metric(label="6-Year Graduation Rate", value=pct_str(val))
                 if 'Retention Rate' in school and pd.notna(school['Retention Rate']):
                     st.metric(label="Full-Time Retention Rate", value=f"{school['Retention Rate']:.1f}%")
                 if 'Student-to-Faculty Ratio' in school and pd.notna(school['Student-to-Faculty Ratio']):

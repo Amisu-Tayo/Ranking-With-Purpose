@@ -131,16 +131,33 @@ try:
             with res_col3:
                 st.markdown("**Key Individual Stats**", help="A few important raw data points for this school.")
                 
-                if 'Graduation Rate (4yr)' in school and pd.notna(school['Graduation Rate (4yr)']):
-                     st.metric(label="4-Year Graduation Rate", value=f"{school['Graduation Rate (4yr)']:.1f}%")
-                if 'Graduation Rate (5yr)' in school and pd.notna(school['Graduation Rate (5yr)']):
-                     st.metric(label="5-Year Graduation Rate", value=f"{school['Graduation Rate (5yr)']:.1f}%")
-                if 'Retention Rate' in school and pd.notna(school['Retention Rate']):
-                    st.metric(label="Full-Time Retention Rate", value=f"{school['Retention Rate']:.1f}%")
-                if 'Student-to-Faculty Ratio' in school and pd.notna(school['Student-to-Faculty Ratio']):
-                    st.metric(label="Student-to-Faculty Ratio", value=f"{int(school['Student-to-Faculty Ratio'])} to 1")
-                if 'Average Net Price' in school and pd.notna(school['Average Net Price']):
-                    st.metric(label="Average Net Price", value=f"${int(school['Average Net Price']):,}")
+                grad_rate_4yr_col = "Graduation rate, bachelor's cohort within 4 years, 100 percent (DRVGR2022)"
+                if grad_rate_4yr_col in school and pd.notna(school[grad_rate_4yr_col]):
+                    st.metric(label="4-Year Graduation Rate", value=f"{school[grad_rate_4yr_col]:.1f}%")
+
+                grad_rate_5yr_col = "Graduation rate, bachelor's cohort within 5 years, 100 percent (DRVGR2022)"
+                if grad_rate_5yr_col in school and pd.notna(school[grad_rate_5yr_col]):
+                    st.metric(label="5-Year Graduation Rate", value=f"{school[grad_rate_5yr_col]:.1f}%")
+
+                # --- NEW: Added 6-Year Graduation Rate ---
+                grad_rate_6yr_col = "Graduation rate, bachelor's cohort within 6 years, 100 percent (DRVGR2022)"
+                if grad_rate_6yr_col in school and pd.notna(school[grad_rate_6yr_col]):
+                    st.metric(label="6-Year Graduation Rate", value=f"{school[grad_rate_6yr_col]:.1f}%")
+
+                retention_col = 'Full-time retention rate (EF2022D)'
+                if retention_col in school and pd.notna(school[retention_col]):
+                    st.metric(label="Full-Time Retention Rate", value=f"{school[retention_col]:.1f}%")
+
+                s_to_f_ratio_col = 'Student-to-faculty ratio (DRVEF2022)'
+                if s_to_f_ratio_col in school and pd.notna(school[s_to_f_ratio_col]):
+                    st.metric(label="Student-to-Faculty Ratio", value=f"{int(school[s_to_f_ratio_col])} to 1")
+                
+                net_price_col = 'Average net price (income 0-30,000) (SFA2223)'
+                if net_price_col in school and pd.notna(school[net_price_col]):
+                    st.metric(label="Average Net Price (Low Income)", value=f"${int(school[net_price_col]):,}")
+
+
+
 
     # --- Tab 4: Cluster Map ---
     with tab4:

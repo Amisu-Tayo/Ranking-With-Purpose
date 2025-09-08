@@ -117,12 +117,14 @@ try:
                 st.markdown("**Efficiency Metrics**", help="A score from 0-100 showing how this school's efficiency compares to others. A higher score is better.")
                 
                 # --- BUG FIX: Corrected dictionary keys to match the final CSV ---
-                efficiency_metrics_map = {
-                    'Graduation per Instructional Spending_percentile': 'Grads per Instruction $',
-                    'Retention per Student Services Spending_percentile': 'Retention per Student Services $',
-                    'Degrees per Net Price_percentile': 'Grads per Net Price $',
-                    'Graduation per Core Expenses_percentile': 'Grads per Core Expenses $',
-                    'Degrees per Endowment per FTE_percentile': 'Grads per Endowment $'
+                 efficiency_metrics_map = {
+                    'grad_per_instruction_percentile': 'Grads per Instruction $',
+                    'retention_per_services_percentile': 'Retention per Student Services $',
+                    'degrees_per_netprice_percentile': 'Grads per Net Price $',
+                    'grad_per_core_exp_percentile': 'Grads per Core Expenses $',
+                    'degrees_per_endowment_percentile': 'Grads per Endowment $',
+                    'grad_per_faculty_percentile': 'Grads per Faculty Load',
+                    'retention_per_revenue_percentile': 'Retention per Total Revenue $'
                 }
                 for metric_col, friendly_name in efficiency_metrics_map.items():
                      if metric_col in school and pd.notna(school[metric_col]):

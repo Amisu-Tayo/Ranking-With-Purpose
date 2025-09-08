@@ -17,6 +17,11 @@ def load_data():
     """Loads the final, complete data from GitHub using the robust Python engine."""
     url = 'https://raw.githubusercontent.com/Amisu-Tayo/Ranking-With-Purpose/refs/heads/main/college_rankings_with_efficiency.csv'
     df = pd.read_csv(url, engine='python')
+
+    for col in ["Graduation Rate (4yr)", "Graduation Rate (5yr)", "Graduation Rate (6yr)"]:
+    if col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+        df[col] = df[col].apply(lambda x: x*100 if pd.notna(x) and x <= 1 else x)
     return df
 
 # --- Main App ---

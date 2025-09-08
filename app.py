@@ -121,14 +121,15 @@ try:
                 
                 # UPDATED: match the new CSV column names exactly
                 efficiency_metrics_map = {
-                    'grad_per_instruction_percentile': 'Grads per Instruction $',
-                    'retention_per_services_percentile': 'Retention per Student Services $',
-                    'degrees_per_netprice_percentile': 'Grads per Net Price $',
-                    'grad_per_core_exp_percentile': 'Grads per Core Expenses $',
-                    'degrees_per_endowment_percentile': 'Grads per Endowment $',
-                    'grad_per_faculty_percentile': 'Grads per Faculty Load',
-                    'retention_per_revenue_percentile': 'Retention per Total Revenue $'
+                    'grad_per_instruction_percentile': 'Graduation Rate per Dollar Spent on Instruction',
+                    'retention_per_services_percentile': 'Retention Rate per Dollar Spent on Student Services',
+                    'degrees_per_netprice_percentile': 'Graduation Rate per Dollar of Net Price',
+                    'grad_per_core_exp_percentile': 'Graduation Rate per Dollar of Core Expenses',
+                    'degrees_per_endowment_percentile': 'Graduation Rate per Dollar of Endowment',
+                    'grad_per_faculty_percentile': 'Graduation Rate per Full-Time Faculty Member',
+                    'retention_per_revenue_percentile': 'Retention Rate per Dollar of Total Revenue'
                 }
+
                 for metric_col, friendly_name in efficiency_metrics_map.items():
                     if metric_col in school and pd.notna(school[metric_col]):
                         st.metric(label=f"{friendly_name} (Efficiency Score)", value=f"{school[metric_col]:.1f}")

@@ -143,9 +143,9 @@ try:
                         x = float(v)
                     except (TypeError, ValueError):
                         return None
-                if x <= 1.0:  # convert fractions like 0.56 -> 56.0
-                    x *= 100
-                return f"{x:.1f}%"
+                    if x <= 1.0:  # convert fractions like 0.56 -> 56.0
+                        x *= 100
+                    return f"{x:.1f}%"
 
 
                 

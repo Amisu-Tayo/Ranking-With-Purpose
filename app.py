@@ -17,7 +17,7 @@ def load_data():
     """Loads the final, complete data from GitHub and renames key columns for easier use."""
     url = 'https://raw.githubusercontent.com/Amisu-Tayo/Ranking-With-Purpose/main/college_rankings_final_with_insights.csv'
     df = pd.read_csv(url, engine='python')
-    # --- BUG FIX: Rename column to 'State' to match what the app expects ---
+    # Rename state column to ensure consistency across the app
     if 'State abbreviation (HD2023)' in df.columns:
         df.rename(columns={'State abbreviation (HD2023)': 'State'}, inplace=True)
     return df
@@ -31,12 +31,11 @@ try:
     st.markdown("A new lens on college evaluation, designed to help you find a school that's the right fit for *you*.")
 
     # --- Navigation Bar ---
-    # Using st.radio styled horizontally to act as a stateful tab bar
     selected_tab = st.radio(
         "Navigation",
         ["📊 Build Your Ranking", "🔭 Explore Groups", "🔍 Find a School", "🗺️ Cluster Map"],
         horizontal=True,
-        label_visibility="collapsed" # Hides the "Navigation" label for a cleaner look
+        label_visibility="collapsed"
     )
 
     # --- Tab 1: Build Your Ranking ---
@@ -113,7 +112,7 @@ try:
             with res_col2:
                 st.markdown("**Efficiency Metrics**", help="A score from 0-100 showing efficiency compared to others.")
                 
-                # --- BUG FIX: Corrected dictionary keys to EXACTLY match the final CSV ---
+                # Added the efficiency metrics with corrected column names
                 efficiency_metrics_map = {
                     'Graduation Rate per Instructional Spending_percentile': 'Grads per Instruction $',
                     'Retention Rate per Student Service Spending_percentile': 'Retention per Student Services $',
@@ -127,9 +126,9 @@ try:
             with res_col3:
                 st.markdown("**Key Individual Stats**", help="A few important raw data points for this school.")
                 
-                # --- BUG FIX: Corrected column names to match the CSV ---
                 if '4-year Grad Rate' in school and pd.notna(school['4-year Grad Rate']):
                         st.metric(label="4-Year Graduation Rate", value=f"{school['4-year Grad Rate']:.1f}%")
+                # Added 5-year and 6-year grad rates
                 if '5-year Grad Rate' in school and pd.notna(school['5-year Grad Rate']):
                         st.metric(label="5-Year Graduation Rate", value=f"{school['5-year Grad Rate']:.1f}%")
                 if '6-year Grad Rate' in school and pd.notna(school['6-year Grad Rate']):
@@ -150,7 +149,7 @@ try:
         pca_df['pca2'] = X_pca[:, 1]
         fig, ax = plt.subplots(figsize=(12, 8))
         clusters = sorted(pca_df['cluster_name'].unique())
-        colors = plt.get_cmap('viridis')(range(len(clusters))) # Correct way to get colors from cmap
+        colors = plt.get_cmap('viridis')(range(len(clusters)))
         for i, cluster in enumerate(clusters):
             cluster_data = pca_df[pca_df['cluster_name'] == cluster]
             ax.scatter(cluster_data['pca1'], cluster_data['pca2'], color=colors[i], label=cluster, alpha=0.7)

@@ -69,7 +69,8 @@ try:
 
         st.subheader(f'{len(filtered_df)} Schools Match Your Criteria')
         st.dataframe(
-            filtered_df[['Institution Name', 'State'] + list(ranking_metrics.keys())].rename(columns={k: f"{v} (Percentile)" for k, v in ranking_metrics.items()}),
+            filtered_df[['Institution Name', 'State'] + list(ranking_metrics.keys())]
+                .rename(columns={k: f"{v} (Percentile)" for k, v in ranking_metrics.items()}),
             use_container_width=True, hide_index=True
         )
 
@@ -84,7 +85,8 @@ try:
                 with st.expander(f"**{name}**"):
                     cluster_df = df[df['cluster_name'] == name]
                     st.dataframe(
-                        cluster_df[['Institution Name', 'State', 'Insight'] + list(ranking_metrics.keys())].rename(columns={k: f"{v} (Percentile)" for k, v in ranking_metrics.items()}),
+                        cluster_df[['Institution Name', 'State', 'Insight'] + list(ranking_metrics.keys())]
+                            .rename(columns={k: f"{v} (Percentile)" for k, v in ranking_metrics.items()}),
                         use_container_width=True, hide_index=True
                     )
 
@@ -111,13 +113,14 @@ try:
             with res_col1:
                 st.markdown("**Core Rankings**", help="How this school ranks against all others. A rank of 90 means it's in the top 10%.")
                 for metric, label in ranking_metrics.items():
-                    st.metric(label=f"{label} (Percentile Rank)", value=f"{school[metric]:.1f}")
+                    if metric in school and pd.notna(school[metric]):
+                        st.metric(label=f"{label} (Percentile Rank)", value=f"{school[metric]:.1f}")
             
             with res_col2:
                 st.markdown("**Efficiency Metrics**", help="A score from 0-100 showing how this school's efficiency compares to others. A higher score is better.")
                 
-                # --- BUG FIX: Corrected dictionary keys to match the final CSV ---
-                 efficiency_metrics_map = {
+                # UPDATED: match the new CSV column names exactly
+                efficiency_metrics_map = {
                     'grad_per_instruction_percentile': 'Grads per Instruction $',
                     'retention_per_services_percentile': 'Retention per Student Services $',
                     'degrees_per_netprice_percentile': 'Grads per Net Price $',
@@ -127,7 +130,7 @@ try:
                     'retention_per_revenue_percentile': 'Retention per Total Revenue $'
                 }
                 for metric_col, friendly_name in efficiency_metrics_map.items():
-                     if metric_col in school and pd.notna(school[metric_col]):
+                    if metric_col in school and pd.notna(school[metric_col]):
                         st.metric(label=f"{friendly_name} (Efficiency Score)", value=f"{school[metric_col]:.1f}")
 
             with res_col3:
@@ -137,6 +140,9 @@ try:
                      st.metric(label="4-Year Graduation Rate", value=f"{school['Graduation Rate (4yr)']:.1f}%")
                 if 'Graduation Rate (5yr)' in school and pd.notna(school['Graduation Rate (5yr)']):
                      st.metric(label="5-Year Graduation Rate", value=f"{school['Graduation Rate (5yr)']:.1f}%")
+                # NEW: 6-year graduation rate
+                if 'Graduation Rate (6yr)' in school and pd.notna(school['Graduation Rate (6yr)']):
+                     st.metric(label="6-Year Graduation Rate", value=f"{school['Graduation Rate (6yr)']:.1f}%")
                 if 'Retention Rate' in school and pd.notna(school['Retention Rate']):
                     st.metric(label="Full-Time Retention Rate", value=f"{school['Retention Rate']:.1f}%")
                 if 'Student-to-Faculty Ratio' in school and pd.notna(school['Student-to-Faculty Ratio']):
@@ -179,4 +185,3 @@ try:
 
 except Exception as e:
     st.error(f"An unexpected error occurred. Please ensure your CSV file is up to date and accessible at the specified URL. Error details: {e}")
-

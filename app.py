@@ -1,8 +1,44 @@
 import streamlit as st
 import pandas as pd
+import requests
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
+
+# --- API Key from Streamlit Secrets ---
+OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY", None)
+
+def call_openrouter_llm(prompt: str, model: str = "openrouter/auto") -> str:
+    """
+    Calls an LLM via the OpenRouter API and returns the assistant's text.
+    """
+    if not OPENROUTER_API_KEY:
+        return "Error: OPENROUTER_API_KEY is not set in Streamlit secrets."
+
+    url = "https://openrouter.ai/api/v1/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+        # Optional but nice: identify your app
+        "HTTP-Referer": "http://localhost",
+        "X-Title": "Ranking With Purpose LLM Advisor"
+    }
+
+    body = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "You are an educational advisor. Be clear, honest, and base reasoning on provided data."},
+            {"role": "user", "content": prompt}
+        ]
+    }
+
+    resp = requests.post(url, headers=headers, json=body)
+    resp.raise_for_status()
+    data = resp.json()
+    return data["choices"][0]["message"]["content"].strip()
+
+
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -32,7 +68,8 @@ try:
         "📊 Build Your Ranking",
         "🔭 Explore Groups",
         "🔍 Find a School",
-        "🗺️ Cluster Map"
+        "🗺️ Cluster Map",
+        "🦅 Talk to HawkSight"
     ])
 
     # --- Tab 1: Build Your Ranking ---
@@ -202,6 +239,94 @@ try:
         
         st.pyplot(fig)
         st.caption("This chart uses a technique called PCA to represent the four complex ranking dimensions on a simple 2D map, revealing the hidden structure in the data.")
+
+    # --- Tab 5: Hawksight Advisor ---
+        
+   with tab5:
+    st.header("🦅 HawkSight — Precision Guidance for College Decisions")
+    st.markdown(
+        "**HawkSight** evaluates universities the way a hawk surveys terrain — with clarity, focus, "
+        "and an instinct for the strongest landing point 🎯.\n\n"
+        "Describe a student, and HawkSight will identify the most compatible institutions using "
+        "RWP metrics: **Success, Affordability, Resources, and Equity.**"
+    )
+
+
+        student_description = st.text_area(
+            "Describe the student (goals, constraints, preferences):",
+            placeholder="Example: Low-income first-generation student who wants Computer Science, "
+                        "needs strong financial support, and values racial diversity."
+        )
+
+        top_n = st.number_input(
+            "How many top institutions should be included in the context?",
+            min_value=3,
+            max_value=30,
+            value=10,
+            step=1
+        )
+
+        # Compute a simple 'overall' score to rank by for the LLM context
+        # (using existing score columns if available)
+        score_cols = ["student_success_score", "affordability_score", "resources_score", "equity_score"]
+        available_score_cols = [c for c in score_cols if c in df.columns]
+
+        if available_score_cols:
+            df_for_llm = df.copy()
+            df_for_llm["overall_score_for_llm"] = df_for_llm[available_score_cols].mean(axis=1)
+            df_for_llm = df_for_llm.sort_values("overall_score_for_llm", ascending=False)
+        else:
+            # fallback: just use original df order if no combined score columns found
+            df_for_llm = df.copy()
+
+        def format_rwp_table_for_llm(df_in, n):
+            # pick a subset of columns to keep context compact
+            cols = ["Institution Name", "State",
+                    "student_success_percentile",
+                    "affordability_percentile",
+                    "resources_percentile",
+                    "equity_percentile"]
+            cols = [c for c in cols if c in df_in.columns]
+            subset = df_in[cols].head(n)
+            return subset.to_markdown(index=False)
+
+        if st.button("Generate LLM Recommendation"):
+            if not student_description.strip():
+                st.warning("Please enter a student description first.")
+            else:
+                context_table = format_rwp_table_for_llm(df_for_llm, int(top_n))
+
+               prompt = f"""
+                        You are **HawkSight** — a precise, analytical academic guidance model.
+                        Like a hawk locking onto its target, you identify the best-fit institutions using measurable insight,
+                        not guesswork or prestige-based assumptions.
+                        
+                        You are given:
+                        • A table of top-ranked institutions generated from the RWP framework
+                        • A description of a student's needs, constraints, and goals
+                        
+                        RWP Metrics:
+                        - Student Success
+                        - Affordability
+                        - Resources
+                        - Access & Equity
+                        
+                        Your Task — evaluate with focus, speak with confidence:
+                        1. Identify notable strengths or patterns in the top institutions.
+                        2. Recommend 2–3 universities that best match the student profile.
+                        3. Justify each recommendation citing **specific metrics in the table**.
+                        4. Do not hallucinate — if the data isn't provided, do not invent it.
+                        5. Keep responses impact-driven, clear, and grounded in evidence.
+                        
+                        Respond as **HawkSight**.
+                        """
+
+
+                with st.spinner("Consulting the Hawkademic..."):
+                    advice = call_openrouter_llm(prompt)
+
+                st.subheader("LLM Recommendation & Explanation")
+                st.write(advice)
 
 except Exception as e:
     st.error(f"An unexpected error occurred. Please ensure your CSV file is up to date and accessible at the specified URL. Error details: {e}")

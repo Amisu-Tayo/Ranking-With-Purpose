@@ -243,13 +243,13 @@ try:
     # --- Tab 5: Hawksight Advisor ---
         
     with tab5:
-    st.header("🦅 HawkSight — Precision Guidance for College Decisions")
-    st.markdown(
-        "**HawkSight** evaluates universities the way a hawk surveys terrain — with clarity, focus, "
-        "and an instinct for the strongest landing point 🎯.\n\n"
-        "Describe a student, and HawkSight will identify the most compatible institutions using "
-        "RWP metrics: **Success, Affordability, Resources, and Equity.**"
-    )
+        st.header("🦅 HawkSight — Precision Guidance for College Decisions")
+        st.markdown(
+            "**HawkSight** evaluates universities the way a hawk surveys terrain — with clarity, focus, "
+            "and an instinct for the strongest landing point 🎯.\n\n"
+            "Describe a student, and HawkSight will identify the most compatible institutions using "
+            "RWP metrics: **Success, Affordability, Resources, and Equity.**"
+        )
 
 
         student_description = st.text_area(

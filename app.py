@@ -64,7 +64,7 @@ try:
     st.markdown("A new lens on college evaluation, designed to help you find a school that's the right fit for *you*.")
 
     # --- Create Four Tabs for a Clean Interface ---
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📊 Build Your Ranking",
         "🔭 Explore Groups",
         "🔍 Find a School",

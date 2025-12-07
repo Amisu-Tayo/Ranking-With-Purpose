@@ -5,39 +5,48 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
-# --- API Key from Streamlit Secrets ---
-OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY", None)
+# --- API Keys from Streamlit Secrets ---
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", None)
 
-def call_openrouter_llm(prompt: str, model: str = "openrouter/auto") -> str:
-    """
-    Calls an LLM via the OpenRouter API and returns the assistant's text.
-    """
-    if not OPENROUTER_API_KEY:
-        return "Error: OPENROUTER_API_KEY is not set in Streamlit secrets."
 
-    url = "https://openrouter.ai/api/v1/chat/completions"
+def call_hawksight_llm(prompt: str) -> str:
+    """
+    Calls Groq's Llama 3 model to power HawkSight.
+    """
+    if not GROQ_API_KEY:
+        return "Error: GROQ_API_KEY is not set in Streamlit secrets."
+
+    url = "https://api.groq.com/openai/v1/chat/completions"
 
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json",
-        # Optional but nice: identify your app
-        "HTTP-Referer": "http://localhost",
-        "X-Title": "Ranking With Purpose LLM Advisor"
     }
 
     body = {
-        "model": model,
+        "model": "llama3-8b-8192",
         "messages": [
-            {"role": "system", "content": "You are an educational advisor. Be clear, honest, and base reasoning on provided data."},
-            {"role": "user", "content": prompt}
-        ]
+            {
+                "role": "system",
+                "content": (
+                    "You are HawkSight, a warm, practical college advisor. "
+                    "You help high school students and their families think about good-fit public colleges "
+                    "based on data that is shown to you. "
+                    "Use simple, encouraging language. Avoid jargon. Don't explain how the data was built; "
+                    "just use it to give grounded, honest advice."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
     }
 
-    resp = requests.post(url, headers=headers, json=body)
-    resp.raise_for_status()
-    data = resp.json()
-    return data["choices"][0]["message"]["content"].strip()
-
+    try:
+        resp = requests.post(url, headers=headers, json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        return f"HawkSight ran into an error while generating advice: {e}"
 
 
 # --- Page Configuration ---
@@ -63,7 +72,7 @@ try:
     st.title('🎯 Ranking with Purpose')
     st.markdown("A new lens on college evaluation, designed to help you find a school that's the right fit for *you*.")
 
-    # --- Create Four Tabs for a Clean Interface ---
+    # --- Create Five Tabs for a Clean Interface ---
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📊 Build Your Ranking",
         "🔭 Explore Groups",
@@ -131,7 +140,7 @@ try:
     with tab3:
         st.header("Look Up a Specific School")
         
-        # --- NEW: Single, elegant search dropdown ---
+        # --- Single, elegant search dropdown ---
         school_list = ["-- Select a school --"] + sorted(df['Institution Name'].unique())
         selected_school_name = st.selectbox("Search for a school by typing its name below:", school_list)
 
@@ -174,7 +183,6 @@ try:
             with res_col3:
                 st.markdown("**Key Individual Stats**", help="A few important raw data points for this school.")
 
-                # helper: rendder percent
                 def pct_str(v):
                     try:
                         x = float(v)
@@ -184,9 +192,8 @@ try:
                         x *= 100
                     return f"{x:.1f}%"
 
-                
                 if 'Graduation Rate (4yr)' in school and pd.notna(school['Graduation Rate (4yr)']):
-                     st.metric(label="4-Year Graduation Rate", value=f"{school['Graduation Rate (4yr)']:.1f}%")
+                    st.metric(label="4-Year Graduation Rate", value=f"{school['Graduation Rate (4yr)']:.1f}%")
 
                 # NEW: 5 year graduation rate
                 val = school.get("Graduation Rate (5yr)")
@@ -240,94 +247,117 @@ try:
         st.pyplot(fig)
         st.caption("This chart uses a technique called PCA to represent the four complex ranking dimensions on a simple 2D map, revealing the hidden structure in the data.")
 
-        # --- Tab 5: HawkSight Advisor ---
+    # --- Tab 5: HawkSight Advisor ---
     with tab5:
         st.header("🦅 HawkSight — Precision Guidance for College Decisions")
         st.markdown(
             "**HawkSight** evaluates universities the way a hawk surveys terrain — with clarity, focus, "
             "and an instinct for the strongest landing point 🎯.\n\n"
             "Describe a student, and HawkSight will identify the most compatible institutions using "
-            "RWP metrics: **Success, Affordability, Resources, and Equity.**"
+            "the same data behind this app, explained in plain language."
         )
+        
+        left_col, right_col = st.columns([1, 1.2])
 
-        student_description = st.text_area(
-            "Describe the student (goals, constraints, preferences):",
-            placeholder="Example: Low-income first-generation student who wants Computer Science, "
-                        "needs strong financial support, and values racial diversity."
-        )
+        with left_col:
+            student_description = st.text_area(
+                "Who is this student and what do they care about?",
+                placeholder=(
+                    "Example: I'm a first-generation student interested in biology. "
+                    "My family can't afford high tuition, and I care a lot about graduation rates "
+                    "and feeling supported on campus."
+                ),
+                height=140,
+            )
 
-        top_n = st.number_input(
-            "How many top institutions should be included in the context?",
-            min_value=3,
-            max_value=30,
-            value=10,
-            step=1
-        )
+            top_n = st.number_input(
+                "How many top colleges should HawkSight consider?",
+                min_value=3,
+                max_value=30,
+                value=10,
+                step=1,
+            )
 
-        # Compute a simple 'overall' score for LLM ranking context
-        score_cols = ["student_success_score", "affordability_score", "resources_score", "equity_score"]
-        available_score_cols = [c for c in score_cols if c in df.columns]
+            # Build a simple overall score to sort by
+            score_cols = [
+                "student_success_score",
+                "affordability_score",
+                "resources_score",
+                "equity_score",
+            ]
+            available_score_cols = [c for c in score_cols if c in df.columns]
 
-        if available_score_cols:
-            df_for_llm = df.copy()
-            df_for_llm["overall_score_for_llm"] = df_for_llm[available_score_cols].mean(axis=1)
-            df_for_llm = df_for_llm.sort_values("overall_score_for_llm", ascending=False)
-        else:
-            df_for_llm = df.copy()
+            if available_score_cols:
+                df_for_llm = df.copy()
+                df_for_llm["overall_score_for_llm"] = df_for_llm[available_score_cols].mean(axis=1)
+                df_for_llm = df_for_llm.sort_values("overall_score_for_llm", ascending=False)
+            else:
+                df_for_llm = df.copy()
 
-        def format_rwp_table_for_llm(df_in, n):
-            cols = ["Institution Name", "State",
+            def format_rwp_table_for_llm(df_in, n):
+                cols = [
+                    "Institution Name",
+                    "State",
                     "student_success_percentile",
                     "affordability_percentile",
                     "resources_percentile",
-                    "equity_percentile"]
-            cols = [c for c in cols if c in df_in.columns]
-            subset = df_in[cols].head(n)
-            return subset.to_markdown(index=False)
+                    "equity_percentile",
+                ]
+                cols = [c for c in cols if c in df_in.columns]
+                subset = df_in[cols].head(n)
 
-        if st.button("Generate Recommendation with HawkSight"):
-            if not student_description.strip():
-                st.warning("Please enter a student description first.")
-            else:
-                context_table = format_rwp_table_for_llm(df_for_llm, int(top_n))
+                # Plain, compact text instead of markdown table
+                lines = []
+                for _, row in subset.iterrows():
+                    lines.append(
+                        f"{row['Institution Name']} ({row['State']}) — "
+                        f"Success: {row['student_success_percentile']}, "
+                        f"Affordability: {row['affordability_percentile']}, "
+                        f"Resources: {row['resources_percentile']}, "
+                        f"Equity: {row['equity_percentile']}"
+                    )
+                return "\n".join(lines)
 
-                prompt = f"""
-You are **HawkSight** — a precise, analytical academic guidance model.
-Like a hawk locking onto its target, you identify the best-fit institutions using measurable insight,
-not guesswork or prestige-based assumptions.
+            run_button = st.button("Get guidance from HawkSight")
 
-You are given:
-• A table of top-ranked institutions generated from the RWP framework
-• A description of a student's needs, constraints, and goals
+        with right_col:
+            st.subheader("Colleges HawkSight will consider")
+            preview_table = df.head(int(top_n))[["Institution Name", "State"]]
+            st.dataframe(preview_table, hide_index=True, use_container_width=True)
 
-### DATA CONTEXT
+            st.subheader("HawkSight's Advice")
+            if run_button:
+                if not student_description.strip():
+                    st.warning("Please describe the student first.")
+                else:
+                    context_table = format_rwp_table_for_llm(df_for_llm, int(top_n))
+
+                    prompt = f"""
+Here is a list of public colleges with summary numbers. Each row shows one college, the state it is in,
+and some scores about outcomes, cost, resources, and equity:
+
 {context_table}
 
-### STUDENT DESCRIPTION
-{student_description}
+Now, here is the student:
 
-RWP Metrics:
-- Student Success
-- Affordability
-- Resources
-- Access & Equity
+\"\"\"{student_description}\"\"\"
 
-Your Task — evaluate with focus, speak with confidence:
-1. Identify notable strengths or patterns in the top institutions.
-2. Recommend 2–3 universities that best match the student profile.
-3. Justify each recommendation citing **specific metrics in the table**.
-4. Do not hallucinate — if the data isn't provided, do not invent it.
-5. Keep responses impact-driven, clear, and grounded in evidence.
+Using only the colleges and scores above:
 
-Respond as **HawkSight**.
+- Suggest 2–3 colleges that could be a good fit for this student.
+- Explain *why* in simple language, focusing on what matters to them (money, outcomes, support, etc.).
+- Mention trade-offs if needed (for example, one school may be more affordable while another has stronger outcomes).
+- Speak directly to the student and/or their family. Be encouraging but honest.
+- Do not invent new data that isn't in the list.
 """
 
-                with st.spinner("HawkSight is scanning the field..."):
-                    advice = call_openrouter_llm(prompt)
+                    with st.spinner("HawkSight is scanning the field..."):
+                        advice = call_hawksight_llm(prompt)
 
-                st.subheader("HawkSight Recommendation")
-                st.write(advice)
-
+                    st.subheader("HawkSight Recommendation")
+                    st.write(advice)
+            else:
+                st.caption("HawkSight's suggestions will appear here after you click the button.")
 
 except Exception as e:
-    st.error(f"An unexpected error occurred. Please ensure your CSV file is up to date and accessible at the specified URL. Error details: {e}")
+    st.error(f"An unexpected error occurred. Error details: {e}")

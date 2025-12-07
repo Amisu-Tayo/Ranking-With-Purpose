@@ -321,9 +321,7 @@ try:
             run_button = st.button("Get guidance from HawkSight")
 
         with right_col:
-            st.subheader("Colleges HawkSight will consider")
-            preview_table = df.head(int(top_n))[["Institution Name", "State"]]
-            st.dataframe(preview_table, hide_index=True, use_container_width=True)
+        
 
             st.subheader("HawkSight's Advice")
             if run_button:

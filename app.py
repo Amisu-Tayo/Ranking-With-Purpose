@@ -242,7 +242,7 @@ try:
 
     # --- Tab 5: Hawksight Advisor ---
         
-   with tab5:
+    with tab5:
     st.header("🦅 HawkSight — Precision Guidance for College Decisions")
     st.markdown(
         "**HawkSight** evaluates universities the way a hawk surveys terrain — with clarity, focus, "

@@ -300,6 +300,12 @@ You are given:
 • A table of top-ranked institutions generated from the RWP framework
 • A description of a student's needs, constraints, and goals
 
+### DATA CONTEXT
+{context_table}
+
+### STUDENT DESCRIPTION
+{student_description}
+
 RWP Metrics:
 - Student Success
 - Affordability

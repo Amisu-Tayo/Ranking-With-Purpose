@@ -240,8 +240,7 @@ try:
         st.pyplot(fig)
         st.caption("This chart uses a technique called PCA to represent the four complex ranking dimensions on a simple 2D map, revealing the hidden structure in the data.")
 
-    # --- Tab 5: Hawksight Advisor ---
-        
+        # --- Tab 5: HawkSight Advisor ---
     with tab5:
         st.header("🦅 HawkSight — Precision Guidance for College Decisions")
         st.markdown(
@@ -250,7 +249,6 @@ try:
             "Describe a student, and HawkSight will identify the most compatible institutions using "
             "RWP metrics: **Success, Affordability, Resources, and Equity.**"
         )
-
 
         student_description = st.text_area(
             "Describe the student (goals, constraints, preferences):",
@@ -266,8 +264,7 @@ try:
             step=1
         )
 
-        # Compute a simple 'overall' score to rank by for the LLM context
-        # (using existing score columns if available)
+        # Compute a simple 'overall' score for LLM ranking context
         score_cols = ["student_success_score", "affordability_score", "resources_score", "equity_score"]
         available_score_cols = [c for c in score_cols if c in df.columns]
 
@@ -276,11 +273,9 @@ try:
             df_for_llm["overall_score_for_llm"] = df_for_llm[available_score_cols].mean(axis=1)
             df_for_llm = df_for_llm.sort_values("overall_score_for_llm", ascending=False)
         else:
-            # fallback: just use original df order if no combined score columns found
             df_for_llm = df.copy()
 
         def format_rwp_table_for_llm(df_in, n):
-            # pick a subset of columns to keep context compact
             cols = ["Institution Name", "State",
                     "student_success_percentile",
                     "affordability_percentile",
@@ -290,43 +285,43 @@ try:
             subset = df_in[cols].head(n)
             return subset.to_markdown(index=False)
 
-        if st.button("Generate LLM Recommendation"):
+        if st.button("Generate Recommendation with HawkSight"):
             if not student_description.strip():
                 st.warning("Please enter a student description first.")
             else:
                 context_table = format_rwp_table_for_llm(df_for_llm, int(top_n))
 
-               prompt = f"""
-                        You are **HawkSight** — a precise, analytical academic guidance model.
-                        Like a hawk locking onto its target, you identify the best-fit institutions using measurable insight,
-                        not guesswork or prestige-based assumptions.
-                        
-                        You are given:
-                        • A table of top-ranked institutions generated from the RWP framework
-                        • A description of a student's needs, constraints, and goals
-                        
-                        RWP Metrics:
-                        - Student Success
-                        - Affordability
-                        - Resources
-                        - Access & Equity
-                        
-                        Your Task — evaluate with focus, speak with confidence:
-                        1. Identify notable strengths or patterns in the top institutions.
-                        2. Recommend 2–3 universities that best match the student profile.
-                        3. Justify each recommendation citing **specific metrics in the table**.
-                        4. Do not hallucinate — if the data isn't provided, do not invent it.
-                        5. Keep responses impact-driven, clear, and grounded in evidence.
-                        
-                        Respond as **HawkSight**.
-                        """
+                prompt = f"""
+You are **HawkSight** — a precise, analytical academic guidance model.
+Like a hawk locking onto its target, you identify the best-fit institutions using measurable insight,
+not guesswork or prestige-based assumptions.
 
+You are given:
+• A table of top-ranked institutions generated from the RWP framework
+• A description of a student's needs, constraints, and goals
 
-                with st.spinner("Consulting the Hawkademic..."):
+RWP Metrics:
+- Student Success
+- Affordability
+- Resources
+- Access & Equity
+
+Your Task — evaluate with focus, speak with confidence:
+1. Identify notable strengths or patterns in the top institutions.
+2. Recommend 2–3 universities that best match the student profile.
+3. Justify each recommendation citing **specific metrics in the table**.
+4. Do not hallucinate — if the data isn't provided, do not invent it.
+5. Keep responses impact-driven, clear, and grounded in evidence.
+
+Respond as **HawkSight**.
+"""
+
+                with st.spinner("HawkSight is scanning the field..."):
                     advice = call_openrouter_llm(prompt)
 
-                st.subheader("LLM Recommendation & Explanation")
+                st.subheader("HawkSight Recommendation")
                 st.write(advice)
+
 
 except Exception as e:
     st.error(f"An unexpected error occurred. Please ensure your CSV file is up to date and accessible at the specified URL. Error details: {e}")

@@ -199,6 +199,14 @@ def score_schools_with_preferences(df_in: pd.DataFrame, prefs: dict) -> pd.DataF
 
     return df_scored
 
+def safe_percentile(val):
+    """Convert a value to a clean integer percentile (0–100), or None if invalid."""
+    try:
+        return int(round(float(val)))
+    except (TypeError, ValueError):
+        return None
+
+
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -451,29 +459,52 @@ try:
                     candidate_k = min(40, len(df_scored))
                     candidates = df_scored.head(candidate_k)
 
-                    # Build a compact text chunk for the LLM
+                    
+
+         # Build a compact text chunk for the LLM, using clean percentile integers
                     lines = []
                     for _, row in candidates.iterrows():
                         try:
+                            s = safe_percentile(row.get("student_success_percentile"))
+                            a = safe_percentile(row.get("affordability_percentile"))
+                            r = safe_percentile(row.get("resources_percentile"))
+                            e = safe_percentile(row.get("equity_percentile"))
+
+                            parts = []
+                            if s is not None:
+                                parts.append(f"Success: {s}th percentile")
+                            if a is not None:
+                                parts.append(f"Affordability: {a}th percentile")
+                            if r is not None:
+                                parts.append(f"Resources: {r}th percentile")
+                            if e is not None:
+                                parts.append(f"Equity: {e}th percentile")
+
+                            metrics_str = ", ".join(parts)
+
                             lines.append(
-                                f"{row['Institution Name']} ({row['State']}) — "
-                                f"Success: {row['student_success_percentile']}, "
-                                f"Affordability: {row['affordability_percentile']}, "
-                                f"Resources: {row['resources_percentile']}, "
-                                f"Equity: {row['equity_percentile']}"
+                                f"{row['Institution Name']} ({row['State']}) — {metrics_str}"
                             )
                         except KeyError:
                             continue
 
                     context_table = "\n".join(lines)
 
+
+
+                    
+
                     # 3) LLM Call #2: explanation + final recommendations
                     prompt = f"""
-Below is a list of public colleges and four scores for each one:
-- Student success
-- Affordability
-- Resources
-- Equity
+Below is a list of public colleges and four percentile rankings (0–100) for each one:
+- Student success (higher percentile = better outcomes)
+- Affordability (higher percentile = more affordable relative to others)
+- Resources (higher percentile = stronger academic resources)
+- Equity (higher percentile = stronger access and support for diverse students)
+
+Each number like "84th percentile" means the college is doing better than about 84% of schools on that metric.
+When you talk about these numbers, refer to them as percentiles or as being "roughly top X%" instead of calling them raw scores.
+
 
 These colleges were selected by matching the student's preferences against the full dataset.
 You are HawkSight, a warm, practical advisor for high school students and their families.

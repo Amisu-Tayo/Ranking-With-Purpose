@@ -9,7 +9,14 @@ import json
 # --- API Key from Streamlit Secrets ---
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", None)
 
+# --- import Recommender model ---
+from rwp_recommender import (
+    FEATURE_COLS,
+    recommend_cluster_aware,
+    normalize_weights,
+)
 
+#--- ----
 def call_hawksight_llm(prompt: str) -> str:
     """
     Calls Groq's Llama 3 model to power HawkSight.
@@ -50,26 +57,23 @@ def call_hawksight_llm(prompt: str) -> str:
         return f"HawkSight ran into an error while generating advice: {e}"
 
 
-def extract_preferences_with_llm(student_text: str) -> dict:
+# --- ----
+def parse_student_profile_with_llm(description: str):
     """
-    Uses Groq LLM to turn a free-text student description into
-    numeric weights + optional thresholds and state preferences.
+    Use Groq (Llama 3) to convert a natural-language student description
+    into structured preferences for the recommender system.
 
-    Returns a Python dict. Falls back to equal weights on any failure.
+    Returns (weights, thresholds, states_preferred).
     """
     if not GROQ_API_KEY:
-        # fallback: equal weights
-        return {
-            "weights": {
-                "student_success_percentile": 0.25,
-                "affordability_percentile": 0.25,
-                "resources_percentile": 0.25,
-                "equity_percentile": 0.25,
-            },
-            "min_thresholds": {},
-            "states_preferred": [],
-            "states_excluded": [],
+        # Fallback: equal weights, no filters
+        default_weights = {
+            "student_success_percentile": 0.25,
+            "affordability_percentile": 0.25,
+            "resources_percentile": 0.25,
+            "equity_percentile": 0.25,
         }
+        return normalize_weights(default_weights), {}, []
 
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
@@ -77,135 +81,79 @@ def extract_preferences_with_llm(student_text: str) -> dict:
         "Content-Type": "application/json",
     }
 
-    system_msg = (
-        "You are HawkSight-Config, a helper that ONLY outputs JSON.\n"
-        "Given a student's description, you will map it to preferences over four metrics:\n"
-        "- student_success_percentile\n"
-        "- affordability_percentile\n"
-        "- resources_percentile\n"
-        "- equity_percentile\n\n"
-        "Output a JSON object with:\n"
-        "{\n"
-        "  \"weights\": { metric_name: float 0-1, ... },\n"
-        "  \"min_thresholds\": { metric_name: float 0-100, ... },\n"
-        "  \"states_preferred\": [\"MD\", \"PA\"],\n"
-        "  \"states_excluded\": [\"CA\"]\n"
-        "}\n"
-        "Weights should roughly sum to 1. If the student doesn't care about location,\n"
-        "use empty arrays for states. Do NOT include any extra keys. Do NOT write prose."
-    )
+    system_prompt = """
+You are helping configure a college recommender system.
+
+Your job is to read a student's description and output a JSON object with:
+{
+  "weights": {
+    "student_success_percentile": float,
+    "affordability_percentile": float,
+    "resources_percentile": float,
+    "equity_percentile": float
+  },
+  "thresholds": {
+    "...": float or omit if not needed
+  },
+  "states_preferred": ["two-letter codes like 'MD', 'NY'"] 
+}
+
+Guidelines:
+- Weights reflect what the student *cares about most* (higher = more important).
+- You do NOT need weights to sum to 1; they will be normalized later.
+- Use thresholds only when the student clearly wants to avoid low values 
+  (e.g. very low affordability, very low success).
+- Include states_preferred if the student mentions specific states or locations.
+Return ONLY valid JSON. No comments or extra text.
+"""
 
     body = {
         "model": "llama-3.1-8b-instant",
         "messages": [
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": student_text},
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": f"Student description:\n{description}",
+            },
         ],
-        "temperature": 0.2,
     }
 
     try:
         resp = requests.post(url, headers=headers, json=body)
         resp.raise_for_status()
         data = resp.json()
-        raw_content = data["choices"][0]["message"]["content"]
+        content = data["choices"][0]["message"]["content"].strip()
 
-        # Try to parse JSON from the model output
-        prefs = json.loads(raw_content)
-        return prefs
-    except Exception:
-        # Any error: fall back to equal weights, no thresholds
-        return {
-            "weights": {
-                "student_success_percentile": 0.25,
-                "affordability_percentile": 0.25,
-                "resources_percentile": 0.25,
-                "equity_percentile": 0.25,
-            },
-            "min_thresholds": {},
-            "states_preferred": [],
-            "states_excluded": [],
+        # In case it wraps JSON in ```json ``` fences
+        if content.startswith("```"):
+            content = content.strip("`")
+            # handle leading 'json' if present
+            if content.lower().startswith("json"):
+                content = content[4:].strip()
+
+        parsed = json.loads(content)
+
+        weights = parsed.get("weights", {})
+        thresholds = parsed.get("thresholds", {}) or {}
+        states_preferred = parsed.get("states_preferred", []) or []
+
+        weights = normalize_weights(weights)
+
+        # Ensure states_preferred is a list of strings
+        states_preferred = [str(s).upper() for s in states_preferred]
+
+        return weights, thresholds, states_preferred
+
+    except Exception as e:
+        # Fallback if parsing / API fails
+        default_weights = {
+            "student_success_percentile": 0.25,
+            "affordability_percentile": 0.25,
+            "resources_percentile": 0.25,
+            "equity_percentile": 0.25,
         }
-
-
-def score_schools_with_preferences(df_in: pd.DataFrame, prefs: dict) -> pd.DataFrame:
-    """
-    Apply weights + thresholds + state filters to ALL schools,
-    and compute a HawkSight score for each.
-    Returns a new dataframe sorted by descending score.
-    """
-    metric_cols = [
-        "student_success_percentile",
-        "affordability_percentile",
-        "resources_percentile",
-        "equity_percentile",
-    ]
-
-    df_scored = df_in.copy()
-
-    # 1. State filters
-    states_pref = prefs.get("states_preferred") or []
-    states_excl = prefs.get("states_excluded") or []
-
-    if states_pref and "State" in df_scored.columns:
-        df_scored = df_scored[df_scored["State"].isin(states_pref)]
-
-    if states_excl and "State" in df_scored.columns:
-        df_scored = df_scored[~df_scored["State"].isin(states_excl)]
-
-    # 2. Threshold filters
-    thresholds = prefs.get("min_thresholds") or {}
-    for col, min_val in thresholds.items():
-        if col in df_scored.columns:
-            try:
-                min_val = float(min_val)
-                df_scored = df_scored[df_scored[col] >= min_val]
-            except (TypeError, ValueError):
-                continue
-
-    # If everything got filtered out, fall back to the original df
-    if df_scored.empty:
-        df_scored = df_in.copy()
-
-    # 3. Weights
-    weights = prefs.get("weights") or {}
-    w = {}
-    for col in metric_cols:
-        try:
-            w[col] = float(weights.get(col, 0.0))
-        except (TypeError, ValueError):
-            w[col] = 0.0
-
-    # If all weights are zero, use equal weights
-    if sum(w.values()) == 0:
-        w = {col: 1.0 for col in metric_cols}
-
-    total = sum(w.values())
-    w = {col: val / total for col, val in w.items()}
-
-    # 4. Compute HawkSight score
-    def compute_score(row):
-        score = 0.0
-        for col in metric_cols:
-            if col in row and pd.notna(row[col]):
-                try:
-                    score += w[col] * float(row[col])
-                except (TypeError, ValueError):
-                    continue
-        return score
-
-    df_scored["hawksight_score"] = df_scored.apply(compute_score, axis=1)
-    df_scored = df_scored.sort_values("hawksight_score", ascending=False)
-
-    return df_scored
-
-def safe_percentile(val):
-    """Convert a value to a clean integer percentile (0–100), or None if invalid."""
-    try:
-        return int(round(float(val)))
-    except (TypeError, ValueError):
-        return None
-
+        print("parse_student_profile_with_llm error:", e)
+        return normalize_weights(default_weights), {}, []
 
 
 # --- Page Configuration ---
@@ -411,12 +359,14 @@ try:
         st.pyplot(fig)
         st.caption("This chart uses a technique called PCA to represent the four complex ranking dimensions on a simple 2D map, revealing the hidden structure in the data.")
 
-    # --- Tab 5: HawkSight Advisor ---
+       # --- Tab 5: HawkSight Advisor ---
     with tab5:
         st.header("🦅 HawkSight — Precision Guidance for College Decisions")
         st.markdown(
-            "Describe the student, and HawkSight will use the same data behind this app to suggest good-fit public colleges "
-            "in plain language — based on what the student actually says they care about."
+            "**HawkSight** evaluates universities the way a hawk surveys terrain — with clarity, focus, "
+            "and an instinct for the strongest landing point 🎯.\n\n"
+            "Describe a student, and HawkSight will identify compatible institutions using "
+            "your RWP metrics (Success, Affordability, Resources, Equity) under the hood."
         )
 
         left_col, right_col = st.columns([1, 1.2])
@@ -427,108 +377,99 @@ try:
                 placeholder=(
                     "Example: I'm a first-generation student interested in biology. "
                     "My family can't afford high tuition, and I care a lot about graduation rates "
-                    "and feeling supported on campus."
+                    "and feeling supported on campus. I'd like to stay in MD or NY."
                 ),
                 height=140,
             )
 
-            recommend_n = st.selectbox(
-                "How many colleges should HawkSight recommend?",
-                [2, 3, 4, 5],
-                index=1,
+            top_k = st.number_input(
+                "How many colleges should HawkSight evaluate internally?",
+                min_value=5,
+                max_value=30,
+                value=10,
+                step=1,
             )
 
             run_button = st.button("Get guidance from HawkSight")
 
         with right_col:
-            st.subheader("HawkSight's Advice")
+            st.subheader("HawkSight Recommendation")
 
             if run_button:
                 if not student_description.strip():
                     st.warning("Please describe the student first.")
                 else:
-                    # 1) LLM Call #1: turn text into preferences
-                    with st.spinner("Figuring out what matters most to this student..."):
-                        prefs = extract_preferences_with_llm(student_description)
+                    # 1) Let the LLM parse preferences → weights / thresholds / states
+                    weights, thresholds, states_pref = parse_student_profile_with_llm(
+                        student_description
+                    )
 
-                    # 2) Python: apply those preferences to the FULL dataset
-                    df_scored = score_schools_with_preferences(df, prefs)
+                    # Optional: show what HawkSight inferred
+                    with st.expander("See how HawkSight interpreted this profile"):
+                        st.write("**Weights (normalized):**", weights)
+                        st.write("**Thresholds:**", thresholds)
+                        st.write("**Preferred states:**", states_pref)
 
-                    # Limit what we SHOW to the LLM (for token reasons),
-                    # but note: every school was considered in df_scored.
-                    candidate_k = min(40, len(df_scored))
-                    candidates = df_scored.head(candidate_k)
+                    # 2) Use the cluster-aware recommender to pick colleges
+                    recommended = recommend_cluster_aware(
+                        df,
+                        base_model="weighted",
+                        weights=weights,
+                        thresholds=thresholds,
+                        states_preferred=states_pref,
+                        states_excluded=None,
+                        top_k=int(top_k),
+                    )
 
-                    
-
-         # Build a compact text chunk for the LLM, using clean percentile integers
+                    # 3) Build a compact text context for the LLM
                     lines = []
-                    for _, row in candidates.iterrows():
+                    for _, row in recommended.iterrows():
                         try:
-                            s = safe_percentile(row.get("student_success_percentile"))
-                            a = safe_percentile(row.get("affordability_percentile"))
-                            r = safe_percentile(row.get("resources_percentile"))
-                            e = safe_percentile(row.get("equity_percentile"))
-
-                            parts = []
-                            if s is not None:
-                                parts.append(f"Success: {s}th percentile")
-                            if a is not None:
-                                parts.append(f"Affordability: {a}th percentile")
-                            if r is not None:
-                                parts.append(f"Resources: {r}th percentile")
-                            if e is not None:
-                                parts.append(f"Equity: {e}th percentile")
-
-                            metrics_str = ", ".join(parts)
-
-                            lines.append(
-                                f"{row['Institution Name']} ({row['State']}) — {metrics_str}"
-                            )
-                        except KeyError:
+                            s = int(round(float(row["student_success_percentile"])))
+                            a = int(round(float(row["affordability_percentile"])))
+                            r = int(round(float(row["resources_percentile"])))
+                            e = int(round(float(row["equity_percentile"])))
+                        except Exception:
+                            # skip if any metric missing badly
                             continue
+
+                        lines.append(
+                            f"{row['Institution Name']} ({row['State']}) — "
+                            f"Success: {s}th percentile, "
+                            f"Affordability: {a}th percentile, "
+                            f"Resources: {r}th percentile, "
+                            f"Equity: {e}th percentile"
+                        )
 
                     context_table = "\n".join(lines)
 
-
-
-                    
-
-                    # 3) LLM Call #2: explanation + final recommendations
                     prompt = f"""
-Below is a list of public colleges and four percentile rankings (0–100) for each one:
-- Student success (higher percentile = better outcomes)
-- Affordability (higher percentile = more affordable relative to others)
-- Resources (higher percentile = stronger academic resources)
-- Equity (higher percentile = stronger access and support for diverse students)
+The list below contains public colleges that were ALREADY selected
+by a recommender system based on the student's description.
 
-Each number like "84th percentile" means the college is doing better than about 84% of schools on that metric.
-When you talk about these numbers, refer to them as percentiles or as being "roughly top X%" instead of calling them raw scores.
+Each line shows one college, its state, and percentile rankings (0–100):
 
-
-These colleges were selected by matching the student's preferences against the full dataset.
-You are HawkSight, a warm, practical advisor for high school students and their families.
-
-Colleges and their scores:
 {context_table}
 
-Here is the student:
+Now, here is the student:
 
 \"\"\"{student_description}\"\"\"
 
-Your task:
-- Recommend **{recommend_n}** colleges from the list above.
-- Explain why each recommendation fits this student, in simple, encouraging language.
-- Mention trade-offs if helpful (for example, cost vs outcomes or support vs prestige).
-- Do NOT add any colleges that are not in the list.
-- Do NOT invent extra numeric scores that are not shown.
+Using only the colleges listed above:
+
+- Suggest 2–3 colleges that could be a good fit for this student.
+- Explain why in simple language, focusing on what matters to them 
+  (money, outcomes, support, location, etc.).
+- Mention trade-offs honestly (for example, one might be cheaper while another has stronger outcomes).
+- Do not invent new data that isn't in the list.
+- Speak directly to the student or their family, and be warm but honest.
 """
 
-                    with st.spinner("HawkSight is thinking through options..."):
+                    with st.spinner("HawkSight is scanning the field..."):
                         advice = call_hawksight_llm(prompt)
 
-                    st.subheader("HawkSight Recommendation")
                     st.write(advice)
+
             else:
                 st.caption("HawkSight's guidance will appear here after you click the button.")
 

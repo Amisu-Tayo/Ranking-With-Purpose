@@ -16,7 +16,16 @@ from rwp_recommender import (
     normalize_weights,
 )
 
-#--- ----
+# --- Helper: clean percentile values ---
+def safe_percentile(val):
+    """Return rounded percentile (0–100) or None if invalid."""
+    try:
+        return int(round(float(val)))
+    except (TypeError, ValueError):
+        return None
+
+
+# --- LLM call for final HawkSight advice ---
 def call_hawksight_llm(prompt: str) -> str:
     """
     Calls Groq's Llama 3 model to power HawkSight.
@@ -57,7 +66,7 @@ def call_hawksight_llm(prompt: str) -> str:
         return f"HawkSight ran into an error while generating advice: {e}"
 
 
-# --- ----
+# --- LLM call to interpret the student's description into preferences ---
 def parse_student_profile_with_llm(description: str):
     """
     Use Groq (Llama 3) to convert a natural-language student description
@@ -127,7 +136,6 @@ Return ONLY valid JSON. No comments or extra text.
         # In case it wraps JSON in ```json ``` fences
         if content.startswith("```"):
             content = content.strip("`")
-            # handle leading 'json' if present
             if content.lower().startswith("json"):
                 content = content[4:].strip()
 
@@ -249,11 +257,9 @@ try:
     with tab3:
         st.header("Look Up a Specific School")
 
-        # Single, elegant search dropdown
         school_list = ["-- Select a school --"] + sorted(df['Institution Name'].unique())
         selected_school_name = st.selectbox("Search for a school by typing its name below:", school_list)
 
-        # Display the profile only when a valid school is selected
         if selected_school_name != "-- Select a school --":
             school = df[df['Institution Name'] == selected_school_name].iloc[0]
 
@@ -296,21 +302,19 @@ try:
                         x = float(v)
                     except (TypeError, ValueError):
                         return None
-                    if x <= 1.0:  # convert fractions like 0.56 -> 56.0
+                    if x <= 1.0:
                         x *= 100
                     return f"{x:.1f}%"
 
                 if 'Graduation Rate (4yr)' in school and pd.notna(school['Graduation Rate (4yr)']):
                     st.metric(label="4-Year Graduation Rate", value=f"{school['Graduation Rate (4yr)']:.1f}%")
 
-                # 5-year graduation rate
                 val = school.get("Graduation Rate (5yr)")
                 if pd.isna(val):
                     val = school.get("Graduation rate - Bachelor degree within 5 years  total (DRVGR2023)")
                 if pd.notna(val):
                     st.metric(label="5-Year Graduation Rate", value=pct_str(val))
 
-                # 6-year graduation rate
                 val = school.get("Graduation Rate (6yr)")
                 if pd.isna(val):
                     val = school.get("Graduation rate - Bachelor degree within 6 years  total (DRVGR2023)")
@@ -354,12 +358,12 @@ try:
         ax.set_xlabel('Principal Component 1 (Success vs. Affordability/Equity)')
         ax.set_ylabel('Principal Component 2 (Academic Resources)')
         ax.legend()
-        ax.grid(True, linestyle='--', alpha=0.6)
+        ax.grid(True, linestyle="--", alpha=0.6)
 
         st.pyplot(fig)
         st.caption("This chart uses a technique called PCA to represent the four complex ranking dimensions on a simple 2D map, revealing the hidden structure in the data.")
 
-       # --- Tab 5: HawkSight Advisor ---
+    # --- Tab 5: HawkSight Advisor ---
     with tab5:
         st.header("🦅 HawkSight — Precision Guidance for College Decisions")
         st.markdown(
@@ -382,11 +386,11 @@ try:
                 height=140,
             )
 
-            top_k = st.number_input(
-                "How many colleges should HawkSight evaluate internally?",
-                min_value=5,
-                max_value=30,
-                value=10,
+            num_recs = st.number_input(
+                "How many colleges should HawkSight recommend?",
+                min_value=1,
+                max_value=10,
+                value=3,
                 step=1,
             )
 
@@ -404,13 +408,12 @@ try:
                         student_description
                     )
 
-                    # Optional: show what HawkSight inferred
                     with st.expander("See how HawkSight interpreted this profile"):
                         st.write("**Weights (normalized):**", weights)
                         st.write("**Thresholds:**", thresholds)
                         st.write("**Preferred states:**", states_pref)
 
-                    # 2) Use the cluster-aware recommender to pick colleges
+                    # 2) Use the cluster-aware recommender to pick colleges (internal pool = 30)
                     recommended = recommend_cluster_aware(
                         df,
                         base_model="weighted",
@@ -418,19 +421,24 @@ try:
                         thresholds=thresholds,
                         states_preferred=states_pref,
                         states_excluded=None,
-                        top_k=int(top_k),
+                        top_k=30,
                     )
+
+                    # Only keep as many as the user asked to see
+                    recommended = recommended.head(int(num_recs))
 
                     # 3) Build a compact text context for the LLM
                     lines = []
                     for _, row in recommended.iterrows():
                         try:
-                            s = int(round(float(row["student_success_percentile"])))
-                            a = int(round(float(row["affordability_percentile"])))
-                            r = int(round(float(row["resources_percentile"])))
-                            e = int(round(float(row["equity_percentile"])))
+                            s = safe_percentile(row.get("student_success_percentile"))
+                            a = safe_percentile(row.get("affordability_percentile"))
+                            r = safe_percentile(row.get("resources_percentile"))
+                            e = safe_percentile(row.get("equity_percentile"))
                         except Exception:
-                            # skip if any metric missing badly
+                            continue
+
+                        if None in (s, a, r, e):
                             continue
 
                         lines.append(
@@ -457,7 +465,7 @@ Now, here is the student:
 
 Using only the colleges listed above:
 
-- Suggest 2–3 colleges that could be a good fit for this student.
+- Suggest up to {int(num_recs)} colleges that could be a good fit for this student.
 - Explain why in simple language, focusing on what matters to them 
   (money, outcomes, support, location, etc.).
 - Mention trade-offs honestly (for example, one might be cheaper while another has stronger outcomes).
@@ -470,7 +478,7 @@ Using only the colleges listed above:
 
                     st.write(advice)
 
-                                        # 4) Visual profile for the top match (no overall score)
+                    # 4) Visual profile for the top match (no overall score)
                     if not recommended.empty:
                         top_school = recommended.iloc[0]
 
@@ -502,12 +510,9 @@ Using only the colleges listed above:
                             ax2.grid(axis="y", linestyle="--", alpha=0.4)
 
                             st.pyplot(fig2)
-
-
-            
-
             else:
                 st.caption("HawkSight's guidance will appear here after you click the button.")
 
 except Exception as e:
     st.error(f"An unexpected error occurred. Error details: {e}")
+

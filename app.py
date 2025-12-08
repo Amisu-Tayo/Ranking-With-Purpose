@@ -470,6 +470,42 @@ Using only the colleges listed above:
 
                     st.write(advice)
 
+                                        # 4) Visual profile for the top match (no overall score)
+                    if not recommended.empty:
+                        top_school = recommended.iloc[0]
+
+                        s = safe_percentile(top_school.get("student_success_percentile"))
+                        a = safe_percentile(top_school.get("affordability_percentile"))
+                        r = safe_percentile(top_school.get("resources_percentile"))
+                        e = safe_percentile(top_school.get("equity_percentile"))
+
+                        metrics_for_chart = {}
+                        if s is not None:
+                            metrics_for_chart["Student Success"] = s
+                        if a is not None:
+                            metrics_for_chart["Affordability"] = a
+                        if r is not None:
+                            metrics_for_chart["Resources"] = r
+                        if e is not None:
+                            metrics_for_chart["Equity"] = e
+
+                        if metrics_for_chart:
+                            st.subheader(
+                                f"RWP Profile for Top Match: {top_school['Institution Name']} ({top_school['State']})"
+                            )
+
+                            fig2, ax2 = plt.subplots()
+                            ax2.bar(list(metrics_for_chart.keys()), list(metrics_for_chart.values()))
+                            ax2.set_ylim(0, 100)
+                            ax2.set_ylabel("Percentile Rank (0–100)")
+                            ax2.set_title("How this school compares across RWP dimensions")
+                            ax2.grid(axis="y", linestyle="--", alpha=0.4)
+
+                            st.pyplot(fig2)
+
+
+            
+
             else:
                 st.caption("HawkSight's guidance will appear here after you click the button.")
 
